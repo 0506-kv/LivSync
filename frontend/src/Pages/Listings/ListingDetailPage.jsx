@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import UserNavbar from '../../Components/User/UserNavbar'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
@@ -15,10 +15,13 @@ function formatDate(value) {
 
 function ListingDetailPage() {
   const { listingId } = useParams()
+  const navigate = useNavigate()
   const [listing, setListing] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryKey, setRetryKey] = useState(0)
+  const [isContacting, setIsContacting] = useState(false)
+  const [contactError, setContactError] = useState('')
 
   useEffect(() => {
     let isCurrent = true
@@ -51,6 +54,25 @@ function ListingDetailPage() {
       isCurrent = false
     }
   }, [listingId, retryKey])
+
+  const handleContactLandlord = async () => {
+    setContactError('')
+    setIsContacting(true)
+
+    try {
+      const response = await axios.post(`${BASE_URL}/messages/conversations`, { listingId }, { withCredentials: true })
+      const conversationId = response.data?.data?.conversation?.id
+
+      if (!response.data?.success || !conversationId) {
+        throw new Error(response.data?.message || 'Unable to contact landlord')
+      }
+
+      navigate(`/messages?c=${conversationId}`)
+    } catch (requestError) {
+      setContactError(requestError.response?.data?.message || requestError.message || 'Unable to contact landlord')
+      setIsContacting(false)
+    }
+  }
 
   const monthlyRent = listing && (listing.totalMonthlyRent
     ?? (Number(listing.rent?.coldRent || 0) + Number(listing.rent?.utilities || 0) + Number(listing.rent?.otherMonthlyCharges || 0)))
@@ -124,6 +146,15 @@ function ListingDetailPage() {
                 <div className="mt-6 border-t border-slate-200 pt-5 text-sm">
                   <p className="font-medium">Listed by {listing.landlord?.name || 'Landlord'}</p>
                   {listing.landlord?.companyName && <p className="mt-1 text-slate-600">{listing.landlord.companyName}</p>}
+                  <button
+                    type="button"
+                    onClick={handleContactLandlord}
+                    disabled={isContacting}
+                    className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isContacting ? 'Opening chat…' : 'Message landlord'}
+                  </button>
+                  {contactError && <p className="mt-2 text-red-600">{contactError}</p>}
                   {listing.floorPlanUrl && <a href={listing.floorPlanUrl} target="_blank" rel="noreferrer" className="mt-4 block font-semibold text-slate-900 hover:underline">View floor plan</a>}
                   {listing.virtualTourUrl && <a href={listing.virtualTourUrl} target="_blank" rel="noreferrer" className="mt-3 block font-semibold text-slate-900 hover:underline">Open virtual tour</a>}
                 </div>

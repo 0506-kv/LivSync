@@ -38,6 +38,7 @@ function UserNavbar() {
         <div className="flex items-center gap-4 text-sm font-medium">
           <NavLink to="/user" end className="text-slate-600 hover:text-slate-900">Home</NavLink>
           <NavLink to="/user/listings" className="text-slate-600 hover:text-slate-900">Listings</NavLink>
+          <NavLink to="/messages" className="text-slate-600 hover:text-slate-900">Messages</NavLink>
           <NavLink to="/user" className="text-slate-600 hover:text-slate-900">Profile</NavLink>
           <span className="hidden text-slate-500 sm:inline">{phone}</span>
           <button

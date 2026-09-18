@@ -6,13 +6,14 @@ import RegisterPage from './Pages/Common/RegisterPage'
 import LandlordHomePage from './Pages/Landlord/LandlordHomePage'
 import LandlordListingsPage from './Pages/Listings/LandlordListingsPage'
 import ListingDetailPage from './Pages/Listings/ListingDetailPage'
+import MessagesPage from './Pages/Messages/MessagesPage'
 import UserListingsPage from './Pages/Listings/UserListingsPage'
 import UserHomePage from './Pages/User/UserHomePage'
 
 function RoleRoute({ role, children }) {
   const { role: currentRole } = useAuth()
 
-  return currentRole === role ? children : <Navigate to="/login" replace />
+  return [].concat(role).includes(currentRole) ? children : <Navigate to="/login" replace />
 }
 
 function App() {
@@ -58,6 +59,14 @@ function App() {
         element={(
           <RoleRoute role="user">
             <ListingDetailPage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/messages"
+        element={(
+          <RoleRoute role={['user', 'landlord']}>
+            <MessagesPage />
           </RoleRoute>
         )}
       />
