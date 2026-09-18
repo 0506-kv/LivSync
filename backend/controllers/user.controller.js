@@ -1,0 +1,144 @@
+const jwt = require('jsonwebtoken');
+const User = require('../models/user.model');
+
+const COOKIE_NAME = 'token';
+const TOKEN_DURATION = '7d';
+const COOKIE_DURATION = 7 * 24 * 60 * 60 * 1000;
+
+function getCookieOptions(includeMaxAge = true) {
+    const options = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+    };
+
+    if (includeMaxAge) options.maxAge = COOKIE_DURATION;
+
+    return options;
+}
+
+function createToken(userId) {
+    return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: TOKEN_DURATION });
+}
+
+function serializeUser(user) {
+    return {
+        id: user._id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        dob: user.dob,
+        gender: user.gender,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+    };
+}
+
+async function registerUser(req, res) {
+    try {
+        const { name, phone, email, dob, gender, password, role } = req.body;
+        const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
+
+        if (existingUser) {
+            const message = existingUser.email === email ? 'Email is already registered' : 'Phone is already registered';
+            return res.status(409).json({ success: false, message, data: {} });
+        }
+
+        const user = await User.create({ name, phone, email, dob, gender, password, role });
+        const token = createToken(user.id);
+
+        return res.status(201).cookie(COOKIE_NAME, token, getCookieOptions()).json({
+            success: true,
+            message: 'User registered successfully',
+            data: { user: serializeUser(user) },
+        });
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: 'Email or phone is already registered',
+                data: {},
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to register user',
+            data: {},
+        });
+    }
+}
+
+async function loginUser(req, res) {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email }).select('+password');
+
+        if (!user || !(await user.comparePassword(password))) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password',
+                data: {},
+            });
+        }
+
+        const token = createToken(user.id);
+
+        return res.cookie(COOKIE_NAME, token, getCookieOptions()).json({
+            success: true,
+            message: 'Login successful',
+            data: { user: serializeUser(user) },
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to log in',
+            data: {},
+        });
+    }
+}
+
+async function logoutUser(req, res) {
+    try {
+        return res.clearCookie(COOKIE_NAME, getCookieOptions(false)).json({
+            success: true,
+            message: 'Logout successful',
+            data: {},
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to log out',
+            data: {},
+        });
+    }
+}
+
+async function getUserProfile(req, res) {
+    try {
+        const user = await User.findById(req.userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+                data: {},
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'User profile retrieved successfully',
+            data: { user: serializeUser(user) },
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to retrieve user profile',
+            data: {},
+        });
+    }
+}
+
+module.exports = { registerUser, loginUser, logoutUser, getUserProfile };
