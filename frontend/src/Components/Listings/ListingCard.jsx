@@ -1,4 +1,5 @@
 import VerifiedBadge from '../Common/VerifiedBadge'
+import SaveListingButton from './SaveListingButton'
 
 function formatRent(value) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(value) || 0)
@@ -8,7 +9,7 @@ function readableValue(value) {
   return value?.replaceAll('-', ' ') || '—'
 }
 
-function ListingCard({ listing, footer }) {
+function ListingCard({ listing, footer, saved = false, onSaveToggle, isSaving = false }) {
   const monthlyRent = listing.totalMonthlyRent
     ?? (Number(listing.rent?.coldRent || 0) + Number(listing.rent?.utilities || 0) + Number(listing.rent?.otherMonthlyCharges || 0))
   const photo = listing.photos?.[0]
@@ -36,7 +37,12 @@ function ListingCard({ listing, footer }) {
         <p className="mt-3 text-sm text-slate-600">
           {listing.bedrooms} bed · {listing.bathrooms} bath · {listing.areaSqFt} sq ft · {readableValue(listing.roomType)}
         </p>
-        {footer && <div className="mt-5 border-t border-slate-100 pt-4">{footer}</div>}
+        {(footer || onSaveToggle) && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            {footer}
+            {onSaveToggle && <SaveListingButton saved={saved} onToggle={onSaveToggle} isSaving={isSaving} />}
+          </div>
+        )}
       </div>
     </article>
   )

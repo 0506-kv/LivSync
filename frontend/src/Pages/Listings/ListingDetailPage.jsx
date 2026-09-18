@@ -6,6 +6,7 @@ import VerifiedBadge from '../../Components/Common/VerifiedBadge'
 import ListingChat from '../../Components/Listings/ListingChat'
 import ListingMap from '../../Components/Listings/ListingMap'
 import ListingModel from '../../Components/Listings/ListingModel'
+import SaveListingButton from '../../Components/Listings/SaveListingButton'
 import RentalRequestForm from '../../Components/Rentals/RentalRequestForm'
 import UserNavbar from '../../Components/User/UserNavbar'
 
@@ -28,6 +29,8 @@ function ListingDetailPage() {
   const [retryKey, setRetryKey] = useState(0)
   const [isContacting, setIsContacting] = useState(false)
   const [contactError, setContactError] = useState('')
+  const [isSaved, setIsSaved] = useState(false)
+  const [isSavingListing, setIsSavingListing] = useState(false)
 
   useEffect(() => {
     let isCurrent = true
@@ -37,14 +40,21 @@ function ListingDetailPage() {
       setError('')
 
       try {
-        const response = await axios.get(`${BASE_URL}/listings/${listingId}`, { withCredentials: true })
-        const loadedListing = response.data?.data?.listing
+        const [listingResponse, savedResponse] = await Promise.all([
+          axios.get(`${BASE_URL}/listings/${listingId}`, { withCredentials: true }),
+          axios.get(`${BASE_URL}/saved-listings`, { withCredentials: true }),
+        ])
+        const loadedListing = listingResponse.data?.data?.listing
+        const savedListings = savedResponse.data?.data?.savedListings
 
-        if (!response.data?.success || !loadedListing) {
-          throw new Error(response.data?.message || 'Unable to load listing')
+        if (!listingResponse.data?.success || !loadedListing || !savedResponse.data?.success || !Array.isArray(savedListings)) {
+          throw new Error(listingResponse.data?.message || savedResponse.data?.message || 'Unable to load listing')
         }
 
-        if (isCurrent) setListing(loadedListing)
+        if (isCurrent) {
+          setListing(loadedListing)
+          setIsSaved(savedListings.some((entry) => entry.listing?._id === listingId))
+        }
       } catch (requestError) {
         if (isCurrent) {
           setError(requestError.response?.data?.message || requestError.message || 'Unable to load listing')
@@ -77,6 +87,24 @@ function ListingDetailPage() {
     } catch (requestError) {
       setContactError(requestError.response?.data?.message || requestError.message || 'Unable to contact landlord')
       setIsContacting(false)
+    }
+  }
+
+  const toggleSavedListing = async () => {
+    setIsSavingListing(true)
+    setContactError('')
+
+    try {
+      const response = isSaved
+        ? await axios.delete(`${BASE_URL}/saved-listings/${listingId}`, { withCredentials: true })
+        : await axios.post(`${BASE_URL}/saved-listings/${listingId}`, {}, { withCredentials: true })
+
+      if (!response.data?.success) throw new Error(response.data?.message || 'Unable to update saved home')
+      setIsSaved((current) => !current)
+    } catch (requestError) {
+      setContactError(requestError.response?.data?.message || requestError.message || 'Unable to update saved home')
+    } finally {
+      setIsSavingListing(false)
     }
   }
 
@@ -173,11 +201,12 @@ function ListingDetailPage() {
                     </p>
                   ) : (
                     <>
+                      <SaveListingButton saved={isSaved} onToggle={toggleSavedListing} isSaving={isSavingListing} className="mt-4 w-full" />
                       <button
                         type="button"
                         onClick={handleContactLandlord}
                         disabled={isContacting}
-                        className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-3 w-full rounded-md bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isContacting ? 'Opening chat…' : 'Message landlord'}
                       </button>

@@ -34,6 +34,12 @@ function hasActiveFilters(filters) {
   return Object.entries(filters).some(([name, value]) => name !== 'sort' && value !== '' && value !== false)
 }
 
+function alertCriteria(filters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([name, value]) => name !== 'sort' && value !== '' && value !== false),
+  )
+}
+
 function UserListingsPage() {
   const [listings, setListings] = useState([])
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
@@ -42,6 +48,10 @@ function UserListingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryKey, setRetryKey] = useState(0)
+  const [savedListingIds, setSavedListingIds] = useState(new Set())
+  const [savingListingId, setSavingListingId] = useState('')
+  const [isCreatingAlert, setIsCreatingAlert] = useState(false)
+  const [alertMessage, setAlertMessage] = useState('')
 
   useEffect(() => {
     let isCurrent = true
@@ -80,6 +90,28 @@ function UserListingsPage() {
     }
   }, [appliedFilters, retryKey])
 
+  useEffect(() => {
+    let isCurrent = true
+
+    const loadSavedListings = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/saved-listings`, { withCredentials: true })
+        const savedListings = response.data?.data?.savedListings
+
+        if (!response.data?.success || !Array.isArray(savedListings)) throw new Error(response.data?.message || 'Unable to load saved homes')
+        if (isCurrent) setSavedListingIds(new Set(savedListings.map((entry) => entry.listing?._id).filter(Boolean)))
+      } catch (requestError) {
+        if (isCurrent) setError(requestError.response?.data?.message || requestError.message || 'Unable to load saved homes')
+      }
+    }
+
+    loadSavedListings()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
   const updateFilter = (name, value) => {
     setFilters((currentFilters) => ({ ...currentFilters, [name]: value }))
   }
@@ -94,24 +126,78 @@ function UserListingsPage() {
     setAppliedFilters({ ...DEFAULT_FILTERS })
   }
 
+  const toggleSavedListing = async (listingId) => {
+    const isSaved = savedListingIds.has(listingId)
+    setSavingListingId(listingId)
+    setError('')
+
+    try {
+      const response = isSaved
+        ? await axios.delete(`${BASE_URL}/saved-listings/${listingId}`, { withCredentials: true })
+        : await axios.post(`${BASE_URL}/saved-listings/${listingId}`, {}, { withCredentials: true })
+
+      if (!response.data?.success) throw new Error(response.data?.message || 'Unable to update saved home')
+
+      setSavedListingIds((current) => {
+        const next = new Set(current)
+        if (isSaved) next.delete(listingId)
+        else next.add(listingId)
+        return next
+      })
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || requestError.message || 'Unable to update saved home')
+    } finally {
+      setSavingListingId('')
+    }
+  }
+
+  const createAlert = async () => {
+    setIsCreatingAlert(true)
+    setAlertMessage('')
+    setError('')
+
+    try {
+      const response = await axios.post(`${BASE_URL}/listing-alerts`, {
+        criteria: alertCriteria(appliedFilters),
+        emailEnabled: true,
+        inAppEnabled: true,
+      }, { withCredentials: true })
+
+      if (!response.data?.success) throw new Error(response.data?.message || 'Unable to create listing alert')
+      setAlertMessage('Alert saved. We’ll notify you about new matches.')
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || requestError.message || 'Unable to create listing alert')
+    } finally {
+      setIsCreatingAlert(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <UserNavbar />
       <main className="mx-auto max-w-5xl px-5 py-10">
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-slate-500">Find a place</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight">Available listings</h1>
           </div>
-          <ListingFilters
-            filters={filters}
-            onChange={updateFilter}
-            onApply={applyFilters}
-            onReset={resetFilters}
-            isLoading={isLoading}
-            hasActiveFilters={hasActiveFilters(appliedFilters)}
-          />
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={createAlert} disabled={isCreatingAlert} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+              {isCreatingAlert ? 'Saving alert…' : 'Alert me'}
+            </button>
+            <ListingFilters
+              filters={filters}
+              onChange={updateFilter}
+              onApply={applyFilters}
+              onReset={resetFilters}
+              isLoading={isLoading}
+              hasActiveFilters={hasActiveFilters(appliedFilters)}
+            />
+          </div>
         </div>
+
+        <p className="mt-3 text-sm text-slate-600">Save homes to revisit them, or create an alert for new listings matching these filters.</p>
+        {alertMessage && <p role="status" className="mt-3 text-sm font-medium text-green-700">{alertMessage}</p>}
 
         {isLoading && <p className="mt-8 text-slate-600">Loading listings…</p>}
         {error && (
@@ -134,6 +220,9 @@ function UserListingsPage() {
                 <ListingCard
                   key={listing._id}
                   listing={listing}
+                  saved={savedListingIds.has(listing._id)}
+                  onSaveToggle={() => toggleSavedListing(listing._id)}
+                  isSaving={savingListingId === listing._id}
                   footer={(
                     <a href={`/listings/${listing._id}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-slate-900 hover:underline">
                       Open full details

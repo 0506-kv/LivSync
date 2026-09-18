@@ -35,4 +35,29 @@ function sendOtpEmail(to, name, code, minutes) {
     });
 }
 
-module.exports = { sendOtpEmail };
+function sendListingAlertEmail(to, name, listing) {
+    const clientUrl = String(process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '');
+    const listingUrl = `${clientUrl}/listings/${listing._id}`;
+    const title = escapeHtml(listing.title);
+    const city = escapeHtml(listing.location?.city || 'your area');
+
+    return getTransporter().sendMail({
+        from: `LivSync <${process.env.EMAIL_USER}>`,
+        to,
+        subject: `New match: ${listing.title}`,
+        text: `Hi ${name},\n\n${listing.title} in ${listing.location?.city || 'your area'} matches one of your LivSync listing alerts.\n\nView it: ${listingUrl}`,
+        html: `
+            <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0f172a">
+                <h1 style="margin:0 0 16px;font-size:20px">A new home matches your alert</h1>
+                <p style="margin:0 0 20px;color:#475569">Hi ${escapeHtml(name)}, <strong>${title}</strong> in ${city} matches one of your saved searches.</p>
+                <a href="${listingUrl}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 16px;border-radius:6px;font-weight:600;text-decoration:none">View listing</a>
+            </div>
+        `,
+    });
+}
+
+function escapeHtml(value) {
+    return String(value || '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+}
+
+module.exports = { sendOtpEmail, sendListingAlertEmail };

@@ -2,6 +2,7 @@ const axios = require('axios');
 const geocoding = require('@mapbox/mapbox-sdk/services/geocoding');
 const Listing = require('../models/listing.model');
 const Landlord = require('../models/landlord.model');
+const { notifyMatchingListing } = require('./listing-alert.controller');
 
 const LANDLORD_FIELDS = 'name companyName businessType verificationStatus emailVerified';
 // A rented listing stays readable so tenants see it marked sold out; an archived one is gone.
@@ -81,6 +82,13 @@ async function createListing(req, res) {
             landlord: req.landlordId,
         });
         await listing.populate('landlord', LANDLORD_FIELDS);
+
+        // Alerts must never make a successfully created home look like a failed listing to its landlord.
+        try {
+            await notifyMatchingListing(listing);
+        } catch (error) {
+            console.error('Unable to create listing alerts:', error.message);
+        }
 
         return res.status(201).json({
             success: true,
@@ -325,9 +333,18 @@ async function updateListing(req, res) {
             });
         }
 
+        const wasPublished = listing.status === 'published';
         applyListingUpdates(listing, req.body);
         await listing.save();
         await listing.populate('landlord', LANDLORD_FIELDS);
+
+        if (!wasPublished && listing.status === 'published') {
+            try {
+                await notifyMatchingListing(listing);
+            } catch (error) {
+                console.error('Unable to create listing alerts:', error.message);
+            }
+        }
 
         return res.json({
             success: true,

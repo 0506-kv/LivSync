@@ -11,6 +11,8 @@ const rentalRoutes = require('./routes/rental.routes');
 const buddyRoutes = require('./routes/buddy.routes');
 const callRoutes = require('./routes/call.routes');
 const verificationRoutes = require('./routes/verification.routes');
+const savedListingRoutes = require('./routes/saved-listing.routes');
+const listingAlertRoutes = require('./routes/listing-alert.routes');
 
 dotenv.config();
 
@@ -40,6 +42,8 @@ app.use('/rentals', rentalRoutes);
 app.use('/buddies', buddyRoutes);
 app.use('/calls', callRoutes);
 app.use('/verify', verificationRoutes);
+app.use('/saved-listings', savedListingRoutes);
+app.use('/listing-alerts', listingAlertRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
