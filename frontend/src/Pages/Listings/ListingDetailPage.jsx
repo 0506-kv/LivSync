@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import RequestCallForm from '../../Components/Calls/RequestCallForm'
+import ListingChat from '../../Components/Listings/ListingChat'
 import RentalRequestForm from '../../Components/Rentals/RentalRequestForm'
 import UserNavbar from '../../Components/User/UserNavbar'
 
@@ -180,6 +181,7 @@ function ListingDetailPage() {
           </article>
         )}
       </main>
+      {listing && !isLoading && !error && <ListingChat listingId={listingId} listingTitle={listing.title} />}
     </div>
   )
 }
