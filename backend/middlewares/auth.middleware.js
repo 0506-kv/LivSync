@@ -1,5 +1,26 @@
 const jwt = require('jsonwebtoken');
 
+const COOKIE_DURATION = 7 * 24 * 60 * 60 * 1000;
+// The deployed frontend and API sit on different onrender.com subdomains, and onrender.com is a
+// public suffix, so the browser treats them as separate sites: a SameSite=Lax cookie is never sent
+// back and every authenticated request 401s. SameSite=None is the only value that survives the
+// trip, and the browser only accepts it over HTTPS.
+// ponytail: keyed off CLIENT_URL because Render sets no NODE_ENV. Serve the API under the site's
+// own domain (a Render rewrite) if third-party cookie blocking ever bites; then Lax works again.
+const isCrossSite = (process.env.CLIENT_URL || '').startsWith('https://');
+
+function getCookieOptions(includeMaxAge = true) {
+    const options = {
+        httpOnly: true,
+        secure: isCrossSite,
+        sameSite: isCrossSite ? 'none' : 'lax',
+    };
+
+    if (includeMaxAge) options.maxAge = COOKIE_DURATION;
+
+    return options;
+}
+
 function requireAuth(req, res, next) {
     try {
         const token = req.cookies.token;
@@ -65,4 +86,4 @@ function requireRole(role, message) {
     };
 }
 
-module.exports = { requireAuth, requireParticipant, requireRole };
+module.exports = { requireAuth, requireParticipant, requireRole, getCookieOptions };

@@ -1,21 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
+const { getCookieOptions } = require('../middlewares/auth.middleware');
 
 const COOKIE_NAME = 'token';
 const TOKEN_DURATION = '7d';
-const COOKIE_DURATION = 7 * 24 * 60 * 60 * 1000;
-
-function getCookieOptions(includeMaxAge = true) {
-    const options = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-    };
-
-    if (includeMaxAge) options.maxAge = COOKIE_DURATION;
-
-    return options;
-}
 
 function createToken(userId) {
     return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: TOKEN_DURATION });
