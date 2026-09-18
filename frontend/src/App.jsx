@@ -4,6 +4,9 @@ import LandingPage from './Pages/Common/LandingPage'
 import LoginPage from './Pages/Common/LoginPage'
 import RegisterPage from './Pages/Common/RegisterPage'
 import LandlordHomePage from './Pages/Landlord/LandlordHomePage'
+import LandlordListingsPage from './Pages/Listings/LandlordListingsPage'
+import ListingDetailPage from './Pages/Listings/ListingDetailPage'
+import UserListingsPage from './Pages/Listings/UserListingsPage'
 import UserHomePage from './Pages/User/UserHomePage'
 
 function RoleRoute({ role, children }) {
@@ -31,6 +34,30 @@ function App() {
         element={(
           <RoleRoute role="landlord">
             <LandlordHomePage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/landlord/listings"
+        element={(
+          <RoleRoute role="landlord">
+            <LandlordListingsPage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/user/listings"
+        element={(
+          <RoleRoute role="user">
+            <UserListingsPage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/listings/:listingId"
+        element={(
+          <RoleRoute role="user">
+            <ListingDetailPage />
           </RoleRoute>
         )}
       />

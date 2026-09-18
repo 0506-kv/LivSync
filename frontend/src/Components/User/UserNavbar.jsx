@@ -37,7 +37,8 @@ function UserNavbar() {
         <NavLink to="/user" className="text-lg font-semibold tracking-tight text-slate-900">LivSync</NavLink>
         <div className="flex items-center gap-4 text-sm font-medium">
           <NavLink to="/user" end className="text-slate-600 hover:text-slate-900">Home</NavLink>
-          <a href="#profile" className="text-slate-600 hover:text-slate-900">Profile</a>
+          <NavLink to="/user/listings" className="text-slate-600 hover:text-slate-900">Listings</NavLink>
+          <NavLink to="/user" className="text-slate-600 hover:text-slate-900">Profile</NavLink>
           <span className="hidden text-slate-500 sm:inline">{phone}</span>
           <button
             type="button"

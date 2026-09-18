@@ -37,7 +37,8 @@ function LandlordNavbar() {
         <NavLink to="/landlord" className="text-lg font-semibold tracking-tight text-slate-900">LivSync</NavLink>
         <div className="flex items-center gap-4 text-sm font-medium">
           <NavLink to="/landlord" end className="text-slate-600 hover:text-slate-900">Home</NavLink>
-          <a href="#profile" className="text-slate-600 hover:text-slate-900">Profile</a>
+          <NavLink to="/landlord/listings" className="text-slate-600 hover:text-slate-900">Listings</NavLink>
+          <NavLink to="/landlord" className="text-slate-600 hover:text-slate-900">Profile</NavLink>
           <span className="hidden text-slate-500 sm:inline">{phone}</span>
           <button
             type="button"
