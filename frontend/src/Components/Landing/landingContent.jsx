@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- content module: copy and tile art live beside the one wrapper that renders them */
 import { motion } from 'framer-motion'
 
 export const CITIES = ['Pune', 'Bengaluru', 'Hyderabad', 'Ahmedabad', 'Mumbai', 'Chennai', 'Indore', 'Jaipur', 'Kochi']
