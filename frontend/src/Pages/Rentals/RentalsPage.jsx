@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import LandlordNavbar from '../../Components/Landlord/LandlordNavbar'
+import ApplicationTracker from '../../Components/Rentals/ApplicationTracker'
 import UserNavbar from '../../Components/User/UserNavbar'
 import { useAuth } from '../../Context/AuthContext'
 
@@ -277,6 +278,8 @@ function RentalsPage() {
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${STATUS_STYLES[rental.status]}`}>{rental.status}</span>
                   </div>
                 </div>
+
+                <ApplicationTracker rental={rental} />
 
                 <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
                   <div><dt className="text-slate-500">Move-in</dt><dd className="mt-1 font-medium">{formatDate(rental.preferences.moveInDate)}</dd></div>
