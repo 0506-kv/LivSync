@@ -6,35 +6,44 @@ const STAGE_STYLES = {
   rejected: 'border-red-200 bg-red-50 text-red-700',
 }
 
-function stageState(status, index) {
+function stageState(rental, index) {
+  const { status } = rental
+  const documentsRequested = rental.documentRequirements?.length > 0
+  const allDocumentsComplete = rental.tenantDocuments?.every((tenant) => tenant.complete)
+
   if (status === 'rejected') {
-    if (index < 2) return 'complete'
-    if (index === 2) return 'rejected'
+    if (index === 0 || index === 2) return 'complete'
+    if (index === 1) return !documentsRequested || allDocumentsComplete ? 'complete' : 'unavailable'
+    if (index === 3) return 'rejected'
     return 'unavailable'
   }
 
   if (status === 'pending') {
     if (index === 0) return 'complete'
-    if (index === 1) return 'current'
+    if (index === 1) return !documentsRequested || allDocumentsComplete ? 'complete' : 'current'
+    if (index === 2) return !documentsRequested || allDocumentsComplete ? 'current' : 'upcoming'
     return 'upcoming'
   }
 
   if (status === 'accepted') {
-    if (index < 3) return 'complete'
-    if (index === 3) return 'current'
+    if (index < 4) return 'complete'
+    if (index === 4) return 'current'
     return 'upcoming'
   }
 
-  if (status === 'paid') return index < 4 ? 'complete' : 'current'
+  if (status === 'paid') return index < 5 ? 'complete' : 'current'
 
   return 'upcoming'
 }
 
 function stageDetails(rental) {
   const rejected = rental.status === 'rejected'
+  const documentsRequested = rental.documentRequirements?.length > 0
+  const allDocumentsComplete = rental.tenantDocuments?.every((tenant) => tenant.complete)
 
   return [
     { title: 'Submitted', detail: 'Application sent' },
+    { title: 'Documents', detail: !documentsRequested ? 'None requested' : allDocumentsComplete ? 'Shared with landlord' : 'Action needed' },
     { title: 'Under review', detail: rental.status === 'pending' ? 'Awaiting landlord' : 'Review complete' },
     {
       title: rejected ? 'Rejected' : 'Approved',
@@ -54,9 +63,9 @@ function ApplicationTracker({ rental }) {
         <h3 id={`application-progress-${rental.id}`} className="text-sm font-semibold text-slate-800">Application progress</h3>
         <span className="text-xs text-slate-500">{rental.status === 'paid' ? 'Complete' : 'Live status'}</span>
       </div>
-      <ol className="mt-3 grid gap-2 sm:grid-cols-5">
+      <ol className="mt-3 grid gap-2 sm:grid-cols-6">
         {stages.map((stage, index) => {
-          const state = stageState(rental.status, index)
+          const state = stageState(rental, index)
 
           return (
             <li key={stage.title} className={`rounded-lg border p-3 ${STAGE_STYLES[state]}`} aria-current={state === 'current' || state === 'rejected' ? 'step' : undefined}>

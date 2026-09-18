@@ -3,6 +3,7 @@ import { useState } from 'react'
 const PROPERTY_TYPES = ['apartment', 'house', 'studio', 'villa', 'room']
 const ROOM_TYPES = ['entire-place', 'private-room', 'shared-room']
 const LISTING_STATUSES = ['published', 'rented', 'archived']
+const COMMON_DOCUMENTS = ['Aadhaar card', 'PAN card', 'Passport', 'Visa']
 
 function toDateInput(value) {
   return value ? new Date(value).toISOString().slice(0, 10) : ''
@@ -32,6 +33,8 @@ function createFormData(listing) {
     virtualTourUrl: listing?.virtualTourUrl || '',
     modelUrl: listing?.modelUrl || '',
     amenities: listing?.amenities?.join(', ') || '',
+    documentRequirements: (listing?.documentRequirements || []).map((requirement) => requirement.name).filter(Boolean),
+    customDocument: '',
     availableFrom: toDateInput(listing?.availableFrom),
     status: listing?.status || 'published',
   }
@@ -43,6 +46,34 @@ function ListingForm({ listing, onSave, onCancel, isSubmitting, error }) {
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target
     setForm((currentForm) => ({ ...currentForm, [name]: type === 'checkbox' ? checked : value }))
+  }
+
+  const toggleCommonDocument = (name) => {
+    setForm((currentForm) => ({
+      ...currentForm,
+      documentRequirements: currentForm.documentRequirements.some((requirement) => requirement.toLocaleLowerCase() === name.toLocaleLowerCase())
+        ? currentForm.documentRequirements.filter((requirement) => requirement.toLocaleLowerCase() !== name.toLocaleLowerCase())
+        : [...currentForm.documentRequirements, name],
+    }))
+  }
+
+  const addCustomDocument = () => {
+    const name = form.customDocument.trim()
+
+    if (!name || form.documentRequirements.some((requirement) => requirement.toLocaleLowerCase() === name.toLocaleLowerCase())) return
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      documentRequirements: [...currentForm.documentRequirements, name],
+      customDocument: '',
+    }))
+  }
+
+  const removeDocumentRequirement = (name) => {
+    setForm((currentForm) => ({
+      ...currentForm,
+      documentRequirements: currentForm.documentRequirements.filter((requirement) => requirement !== name),
+    }))
   }
 
   const handleSubmit = (event) => {
@@ -75,6 +106,7 @@ function ListingForm({ listing, onSave, onCancel, isSubmitting, error }) {
       ...(form.virtualTourUrl.trim() && { virtualTourUrl: form.virtualTourUrl.trim() }),
       ...(form.modelUrl.trim() && { modelUrl: form.modelUrl.trim() }),
       amenities: form.amenities.split(',').map((amenity) => amenity.trim()).filter(Boolean),
+      documentRequirements: form.documentRequirements.map((name) => ({ name })),
       availableFrom: form.availableFrom,
       status: form.status,
     })
@@ -136,6 +168,57 @@ function ListingForm({ listing, onSave, onCancel, isSubmitting, error }) {
       </div>
 
       <label className="block text-sm font-medium text-slate-700" htmlFor="amenities">Amenities <span className="font-normal text-slate-500">(comma separated)</span><input id="amenities" name="amenities" value={form.amenities} onChange={handleChange} disabled={isSubmitting} className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700 disabled:bg-slate-50" /></label>
+      <section className="rounded-lg border border-slate-200 bg-slate-50 p-4" aria-labelledby="document-requirements-heading">
+        <h3 id="document-requirements-heading" className="text-sm font-semibold text-slate-900">Documents required to rent</h3>
+        <p className="mt-1 text-xs text-slate-600">Ask for any documents you need. Tenants choose which private vault file to share with this application.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {COMMON_DOCUMENTS.map((name) => {
+            const selected = form.documentRequirements.some((requirement) => requirement.toLocaleLowerCase() === name.toLocaleLowerCase())
+
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => toggleCommonDocument(name)}
+                disabled={isSubmitting || (!selected && form.documentRequirements.length >= 12)}
+                aria-pressed={selected}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium disabled:opacity-60 ${selected ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500'}`}
+              >
+                {selected ? '✓ ' : ''}{name}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <input
+            name="customDocument"
+            value={form.customDocument}
+            onChange={handleChange}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                addCustomDocument()
+              }
+            }}
+            maxLength="100"
+            disabled={isSubmitting || form.documentRequirements.length >= 12}
+            placeholder="Add another document, e.g. employment letter"
+            className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-700 disabled:bg-slate-100"
+          />
+          <button type="button" onClick={addCustomDocument} disabled={isSubmitting || !form.customDocument.trim() || form.documentRequirements.length >= 12} className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60">Add</button>
+        </div>
+        {form.documentRequirements.length > 0 && (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {form.documentRequirements.map((name) => (
+              <li key={name} className="flex items-center gap-1 rounded-full bg-slate-200 py-1 pl-3 pr-1 text-xs text-slate-800">
+                {name}
+                <button type="button" onClick={() => removeDocumentRequirement(name)} disabled={isSubmitting} aria-label={`Remove ${name}`} className="rounded-full px-1.5 py-0.5 text-slate-600 hover:bg-slate-300 hover:text-slate-950 disabled:opacity-60">×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-slate-500">{form.documentRequirements.length}/12 documents requested</p>
+      </section>
       <label className="block text-sm font-medium text-slate-700" htmlFor="photoUrls">Photo URLs <span className="font-normal text-slate-500">(one per line)</span><textarea id="photoUrls" name="photoUrls" value={form.photoUrls} onChange={handleChange} rows="3" disabled={isSubmitting} className="mt-1.5 w-full resize-y rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700 disabled:bg-slate-50" /></label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-medium text-slate-700" htmlFor="floorPlanUrl">Floor plan URL <span className="font-normal text-slate-500">(optional)</span><input id="floorPlanUrl" name="floorPlanUrl" type="url" value={form.floorPlanUrl} onChange={handleChange} disabled={isSubmitting} className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700 disabled:bg-slate-50" /></label>

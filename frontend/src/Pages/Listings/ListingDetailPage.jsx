@@ -171,6 +171,15 @@ function ListingDetailPage() {
                     <ul className="mt-4 flex flex-wrap gap-2">{listing.amenities.map((amenity) => <li key={amenity} className="rounded-full bg-slate-200 px-3 py-1.5 text-sm text-slate-700">{amenity}</li>)}</ul>
                   ) : <p className="mt-3 text-slate-600">No amenities have been listed.</p>}
                 </section>
+                {listing.documentRequirements?.length > 0 && (
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                    <h2 className="text-xl font-semibold">Documents requested</h2>
+                    <p className="mt-2 text-sm text-slate-600">The landlord needs these documents before approving a rental request. You can upload them with your request or select files already saved in your private profile vault.</p>
+                    <ul className="mt-4 flex flex-wrap gap-2">
+                      {listing.documentRequirements.map((requirement) => <li key={requirement._id || requirement.id || requirement.name} className="rounded-full bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200">{requirement.name}</li>)}
+                    </ul>
+                  </section>
+                )}
                 <ListingMap
                   listingId={listingId}
                   title={listing.title}
@@ -211,7 +220,7 @@ function ListingDetailPage() {
                         {isContacting ? 'Opening chat…' : 'Message landlord'}
                       </button>
                       {contactError && <p className="mt-2 text-red-600">{contactError}</p>}
-                      <RentalRequestForm listingId={listingId} totalDue={monthlyRent + (listing.securityDeposit || 0) + (listing.brokerageFee || 0)} />
+                      <RentalRequestForm listingId={listingId} totalDue={monthlyRent + (listing.securityDeposit || 0) + (listing.brokerageFee || 0)} documentRequirements={listing.documentRequirements || []} />
                       <RequestCallForm listingId={listingId} />
                     </>
                   )}

@@ -1,5 +1,18 @@
 const mongoose = require('mongoose');
 
+const documentRequirementSchema = new mongoose.Schema(
+    {
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+            minlength: 2,
+            maxlength: 100,
+        },
+    },
+    { _id: true }
+);
+
 const listingSchema = new mongoose.Schema(
     {
         landlord: {
@@ -125,6 +138,13 @@ const listingSchema = new mongoose.Schema(
         },
         amenities: {
             type: [String],
+            default: [],
+        },
+        // The landlord can request standard IDs or any clearly named custom document.
+        // These requirements are snapshotted on a rental application, so later edits only
+        // affect future applicants.
+        documentRequirements: {
+            type: [documentRequirementSchema],
             default: [],
         },
         availableFrom: {

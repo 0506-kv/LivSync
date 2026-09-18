@@ -33,6 +33,7 @@ const validateListingCreation = [
     body('modelUrl').optional().custom(isDriveLink),
     body('amenities').optional().isArray({ max: 30 }).withMessage('Amenities must contain at most 30 items'),
     body('amenities.*').optional().trim().isLength({ min: 1, max: 60 }).withMessage('Amenities must be 1 to 60 characters'),
+    validateDocumentRequirements(),
     body('availableFrom').isISO8601().toDate().withMessage('Enter a valid availability date'),
     body('status').optional().isIn(LISTING_STATUSES).withMessage('Enter a valid listing status'),
     handleValidationErrors,
@@ -65,6 +66,7 @@ const validateListingUpdate = [
     body('modelUrl').optional().custom(isDriveLink),
     body('amenities').optional().isArray({ max: 30 }).withMessage('Amenities must contain at most 30 items'),
     body('amenities.*').optional().trim().isLength({ min: 1, max: 60 }).withMessage('Amenities must be 1 to 60 characters'),
+    validateDocumentRequirements(),
     body('availableFrom').optional().isISO8601().toDate().withMessage('Enter a valid availability date'),
     body('status').optional().isIn(LISTING_STATUSES).withMessage('Enter a valid listing status'),
     handleValidationErrors,
@@ -123,6 +125,30 @@ function isLocationObject(value) {
     }
 
     return true;
+}
+
+function validateDocumentRequirements() {
+    return body('documentRequirements')
+        .optional()
+        .isArray({ max: 12 }).withMessage('You can request up to 12 documents')
+        .bail()
+        .custom((requirements) => {
+            const names = new Set();
+
+            for (const requirement of requirements) {
+                const name = String(requirement?.name || '').trim();
+                const key = name.toLocaleLowerCase();
+
+                if (name.length < 2 || name.length > 100) {
+                    throw new Error('Each requested document must be 2 to 100 characters');
+                }
+
+                if (names.has(key)) throw new Error('Each requested document must be listed once');
+                names.add(key);
+            }
+
+            return true;
+        });
 }
 
 function handleValidationErrors(req, res, next) {

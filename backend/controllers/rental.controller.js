@@ -6,6 +6,7 @@ const Rental = require('../models/rental.model');
 const Listing = require('../models/listing.model');
 const Landlord = require('../models/landlord.model');
 const Buddy = require('../models/buddy.model');
+const TenantDocument = require('../models/tenant-document.model');
 
 const RAZORPAY_ORDERS_URL = 'https://api.razorpay.com/v1/orders';
 const TENANT_FIELDS = 'name email phone dob gender preferences';
@@ -14,6 +15,7 @@ const POPULATE = [
     { path: 'buddy', select: TENANT_FIELDS },
     { path: 'landlord', select: 'name companyName businessType email phone address city verificationStatus' },
     { path: 'listing', select: 'title location rent securityDeposit brokerageFee photos propertyType roomType areaSqFt bedrooms bathrooms furnished' },
+    { path: 'documentSubmissions.document', select: 'label originalName mimeType size expiresAt createdAt' },
 ];
 
 function formatMoney(value) {
@@ -104,10 +106,68 @@ function serializeParty(person, payment, viewerId) {
     };
 }
 
+function serializeSharedDocument(document) {
+    if (!document?._id) return null;
+
+    return {
+        id: document._id,
+        label: document.label,
+        originalName: document.originalName,
+        mimeType: document.mimeType,
+        size: document.size,
+        expiresAt: document.expiresAt || null,
+        createdAt: document.createdAt,
+    };
+}
+
+function requirementId(requirement) {
+    return String(requirement.requirementId || requirement._id);
+}
+
+function missingDocumentsFor(rental, tenantId) {
+    const supplied = new Set(
+        rental.documentSubmissions
+            .filter((submission) => String(submission.tenant) === String(tenantId) && submission.document)
+            .map((submission) => String(submission.requirementId))
+    );
+
+    return rental.documentRequirements.filter((requirement) => !supplied.has(requirementId(requirement)));
+}
+
+function hasCompleteDocuments(rental) {
+    return [rental.user, rental.buddy].filter(Boolean)
+        .every((tenant) => missingDocumentsFor(rental, idOf(tenant)).length === 0);
+}
+
+function serializeTenantDocuments(rental, tenant, role, viewerId) {
+    const tenantId = tenant.id || tenant._id;
+    const submissions = rental.documentSubmissions.filter((submission) => String(submission.tenant) === String(tenantId));
+    const canSeeFileDetails = role === 'landlord' || String(tenantId) === String(viewerId);
+
+    return {
+        tenantId,
+        tenantName: tenant.name,
+        mine: Boolean(tenant.mine),
+        complete: missingDocumentsFor(rental, tenantId).length === 0,
+        requirements: rental.documentRequirements.map((requirement) => {
+            const submission = submissions.find((entry) => String(entry.requirementId) === requirementId(requirement));
+
+            return {
+                requirementId: requirementId(requirement),
+                name: requirement.name,
+                document: canSeeFileDetails ? serializeSharedDocument(submission?.document) : null,
+                shared: Boolean(submission?.document),
+                sharedAt: canSeeFileDetails ? submission?.sharedAt || null : null,
+            };
+        }),
+    };
+}
+
 function serializeRental(rental, role, viewerId) {
     const isPaid = rental.status === 'paid';
     const tenants = [rental.user, rental.buddy].filter((tenant) => tenant?.name);
     const myPayment = paymentFor(rental, viewerId);
+    const tenantDetails = tenants.map((tenant) => serializeParty(tenant, paymentFor(rental, tenant._id), viewerId));
 
     return {
         id: rental._id,
@@ -117,7 +177,12 @@ function serializeRental(rental, role, viewerId) {
         isBuddyRequest: Boolean(rental.buddy),
         split: rental.buddy ? { mode: rental.split.mode, value: rental.split.value } : null,
         terms: rental.terms?.totalDue === undefined ? null : rental.terms,
-        tenants: tenants.map((tenant) => serializeParty(tenant, paymentFor(rental, tenant._id), viewerId)),
+        tenants: tenantDetails,
+        documentRequirements: rental.documentRequirements.map((requirement) => ({
+            requirementId: requirementId(requirement),
+            name: requirement.name,
+        })),
+        tenantDocuments: tenantDetails.map((tenant) => serializeTenantDocuments(rental, tenant, role, viewerId)),
         myPayment: myPayment ? serializeParty({ _id: idOf(viewerId) }, myPayment, viewerId).payment : null,
         agreement: rental.agreement?.number ? rental.agreement : null,
         documents: {
@@ -153,6 +218,57 @@ async function findRentalFor(rentalId, participant) {
     return Rental.findOne({ _id: rentalId, ...scopeFor(participant) }).populate(POPULATE);
 }
 
+function snapshotDocumentRequirements(listing) {
+    return (listing.documentRequirements || []).map((requirement) => ({
+        requirementId: requirement._id,
+        name: requirement.name,
+    }));
+}
+
+// A document may only be shared by its owner, and every requested item must be chosen
+// exactly once. The same file cannot impersonate two different identity documents.
+async function buildDocumentSubmissions(documents, requirements, tenantId) {
+    const selections = documents || [];
+
+    if (!Array.isArray(selections) || selections.some((selection) => !selection || typeof selection !== 'object')) {
+        throw new Error('Documents must be a list of vault selections');
+    }
+
+    const requiredIds = new Set(requirements.map(requirementId));
+
+    if (new Set(selections.map((selection) => String(selection?.requirementId))).size !== selections.length
+        || new Set(selections.map((selection) => String(selection?.documentId))).size !== selections.length) {
+        throw new Error('Select one distinct vault document for each requirement');
+    }
+
+    if (selections.length !== requirements.length
+        || selections.some((selection) => !requiredIds.has(String(selection.requirementId)))) {
+        const missing = requirements.find((requirement) => !selections.some(
+            (selection) => String(selection.requirementId) === requirementId(requirement)
+        ));
+        throw new Error(missing ? `Select a document for ${missing.name}` : 'Select each requested document once');
+    }
+
+    if (!selections.length) return [];
+
+    const documentIds = selections.map((selection) => selection.documentId);
+    const ownedDocuments = await TenantDocument.find({
+        _id: { $in: documentIds },
+        owner: tenantId,
+    }).select('_id');
+
+    if (ownedDocuments.length !== documentIds.length) {
+        throw new Error('One or more selected documents are not in your vault');
+    }
+
+    return selections.map((selection) => ({
+        tenant: tenantId,
+        requirementId: selection.requirementId,
+        document: selection.documentId,
+        sharedAt: new Date(),
+    }));
+}
+
 // Claims one tenant's share atomically so the checkout callback and the webhook cannot both
 // settle it, and issues the agreement only on the share that completes the deal.
 async function settlePayment(filter, payerId, fields) {
@@ -183,8 +299,8 @@ async function settlePayment(filter, payerId, fields) {
 
 async function createRental(req, res) {
     try {
-        const { listingId, message, preferences, buddyId, split } = req.body;
-        const listing = await Listing.findOne({ _id: listingId, status: 'published' }).select('landlord');
+        const { listingId, message, preferences, buddyId, split, documents } = req.body;
+        const listing = await Listing.findOne({ _id: listingId, status: 'published' }).select('landlord documentRequirements');
 
         if (!listing) {
             return res.status(404).json({
@@ -205,6 +321,15 @@ async function createRental(req, res) {
                     data: {},
                 });
             }
+        }
+
+        const documentRequirements = snapshotDocumentRequirements(listing);
+        let documentSubmissions;
+
+        try {
+            documentSubmissions = await buildDocumentSubmissions(documents, documentRequirements, req.participant.id);
+        } catch (error) {
+            return res.status(422).json({ success: false, message: error.message, data: {} });
         }
 
         const parties = buddyId ? [req.participant.id, buddyId] : [req.participant.id];
@@ -237,6 +362,8 @@ async function createRental(req, res) {
             decidedAt: undefined,
             terms: undefined,
             payments: [],
+            documentRequirements,
+            documentSubmissions,
         });
         await rental.save();
         await rental.populate(POPULATE);
@@ -252,6 +379,46 @@ async function createRental(req, res) {
             message: 'Unable to send rental request',
             data: {},
         });
+    }
+}
+
+async function updateRentalDocuments(req, res) {
+    try {
+        const rental = await Rental.findOne({ _id: req.params.rentalId, ...scopeFor(req.participant) });
+
+        if (!rental) {
+            return res.status(404).json({ success: false, message: 'Rental request not found or access denied', data: {} });
+        }
+
+        if (rental.status !== 'pending') {
+            return res.status(409).json({
+                success: false,
+                message: 'Documents can only be changed while the application is under review',
+                data: {},
+            });
+        }
+
+        let submissions;
+
+        try {
+            submissions = await buildDocumentSubmissions(req.body.documents, rental.documentRequirements, req.participant.id);
+        } catch (error) {
+            return res.status(422).json({ success: false, message: error.message, data: {} });
+        }
+
+        rental.documentSubmissions = rental.documentSubmissions
+            .filter((submission) => String(submission.tenant) !== String(req.participant.id));
+        rental.documentSubmissions.push(...submissions);
+        await rental.save();
+        await rental.populate(POPULATE);
+
+        return res.json({
+            success: true,
+            message: 'Application documents shared successfully',
+            data: { rental: serializeRental(rental, 'user', req.participant.id) },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Unable to update application documents', data: {} });
     }
 }
 
@@ -302,6 +469,19 @@ async function decideRental(req, res) {
                 return res.status(409).json({
                     success: false,
                     message: 'Add your e-signature before accepting a request',
+                    data: {},
+                });
+            }
+
+            if (!hasCompleteDocuments(rental)) {
+                const waitingOn = [rental.user, rental.buddy].filter(Boolean)
+                    .filter((tenant) => missingDocumentsFor(rental, tenant._id).length > 0)
+                    .map((tenant) => tenant.name)
+                    .join(' and ');
+
+                return res.status(409).json({
+                    success: false,
+                    message: `Required documents are still missing from ${waitingOn || 'the applicant'}`,
                     data: {},
                 });
             }
@@ -737,6 +917,7 @@ async function getReceipt(req, res) {
 
 module.exports = {
     createRental,
+    updateRentalDocuments,
     getRentals,
     decideRental,
     createPaymentOrder,
@@ -749,6 +930,8 @@ module.exports = {
     buildTerms,
     buildPayments,
     isValidPaymentSignature,
+    missingDocumentsFor,
+    hasCompleteDocuments,
     drawAgreement,
     drawReceipt,
 };

@@ -23,6 +23,7 @@ const EDITABLE_FIELDS = [
     'virtualTourUrl',
     'modelUrl',
     'amenities',
+    'documentRequirements',
     'availableFrom',
     'status',
 ];
@@ -423,6 +424,7 @@ function getListingData(data) {
         virtualTourUrl: data.virtualTourUrl,
         modelUrl: data.modelUrl,
         amenities: data.amenities,
+        documentRequirements: data.documentRequirements,
         availableFrom: data.availableFrom,
         status: data.status,
     };

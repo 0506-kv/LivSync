@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import LandlordNavbar from '../../Components/Landlord/LandlordNavbar'
 import ApplicationTracker from '../../Components/Rentals/ApplicationTracker'
+import RequiredDocumentsPicker from '../../Components/Rentals/RequiredDocumentsPicker'
 import UserNavbar from '../../Components/User/UserNavbar'
 import { useAuth } from '../../Context/AuthContext'
 
@@ -97,6 +98,100 @@ function TenantPanel({ tenant, isLandlord, showContact }) {
   )
 }
 
+function TenantDocumentEditor({ rental, tenantDocuments, isBusy, onSave }) {
+  const [selections, setSelections] = useState(() => (tenantDocuments?.requirements || [])
+      .filter((requirement) => requirement.document?.id)
+      .map((requirement) => ({ requirementId: requirement.requirementId, documentId: requirement.document.id })))
+
+  const saveDocuments = (event) => {
+    event.preventDefault()
+    onSave(selections)
+  }
+
+  return (
+    <form onSubmit={saveDocuments} className="mt-4 border-t border-slate-200 pt-4">
+      <RequiredDocumentsPicker
+        requirements={rental.documentRequirements}
+        selectedDocuments={selections}
+        onChange={setSelections}
+        disabled={isBusy}
+        title="Documents requested for this application"
+      />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="submit" disabled={isBusy} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
+          {isBusy ? 'Saving…' : 'Share selected documents'}
+        </button>
+        <p className="text-xs text-slate-500">Only these selected files are visible to this landlord. You can change them until the landlord decides.</p>
+      </div>
+    </form>
+  )
+}
+
+function SharedDocuments({ rental, isLandlord, isBusy, onSave }) {
+  if (!rental.documentRequirements?.length) return null
+
+  if (!isLandlord) {
+    const mine = rental.tenantDocuments?.find((tenant) => tenant.mine)
+
+    if (rental.status !== 'pending') {
+      return (
+        <section className="mt-4 border-t border-slate-200 pt-4" aria-labelledby={`application-documents-${rental.id}`}>
+          <h3 id={`application-documents-${rental.id}`} className="text-sm font-semibold text-slate-800">Requested documents</h3>
+          <p className="mt-1 text-sm text-slate-600">{mine?.complete ? 'Your selected documents were shared with the landlord.' : 'No documents were shared before this application was decided.'}</p>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {(mine?.requirements || []).map((requirement) => (
+              <li key={requirement.requirementId} className={`rounded-full px-3 py-1 text-xs font-medium ${requirement.document ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                {requirement.name}: {requirement.document ? 'shared' : 'not shared'}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    return (
+      <TenantDocumentEditor
+        key={`${rental.id}-${(mine?.requirements || []).map((requirement) => requirement.document?.id || '').join('-')}`}
+        rental={rental}
+        tenantDocuments={mine}
+        isBusy={isBusy}
+        onSave={onSave}
+      />
+    )
+  }
+
+  return (
+    <section className="mt-4 border-t border-slate-200 pt-4" aria-labelledby={`application-documents-${rental.id}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 id={`application-documents-${rental.id}`} className="text-sm font-semibold text-slate-800">Requested documents</h3>
+        <p className="text-xs text-slate-500">Only files expressly shared for this application are available.</p>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        {(rental.tenantDocuments || []).map((tenant) => (
+          <div key={tenant.tenantId} className="rounded-lg border border-slate-200 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-slate-800">{tenant.tenantName}</p>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tenant.complete ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{tenant.complete ? 'Complete' : 'Missing documents'}</span>
+            </div>
+            <ul className="mt-3 space-y-2">
+              {tenant.requirements.map((requirement) => (
+                <li key={requirement.requirementId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="text-slate-600">{requirement.name}</span>
+                  {requirement.document ? (
+                    <a href={`${BASE_URL}/tenant-documents/${requirement.document.id}/download`} target="_blank" rel="noreferrer" className="font-medium text-slate-900 underline hover:text-slate-600">
+                      {requirement.document.label}
+                    </a>
+                  ) : <span className="text-xs font-medium text-amber-700">Not shared</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function RentalsPage() {
   const { role, clearSession } = useAuth()
   const navigate = useNavigate()
@@ -181,6 +276,12 @@ function RentalsPage() {
     rental.id,
     () => axios.post(`${BASE_URL}/rentals/${rental.id}/payment/in-person`, {}, { withCredentials: true }),
     'Unable to select in-person payment',
+  )
+
+  const saveDocuments = (rental, documents) => runAction(
+    rental.id,
+    () => axios.put(`${BASE_URL}/rentals/${rental.id}/documents`, { documents }, { withCredentials: true }),
+    'Unable to share application documents',
   )
 
   const payOnline = async (rental) => {
@@ -295,6 +396,13 @@ function RentalsPage() {
                     <TenantPanel key={tenant.id} tenant={tenant} isLandlord={isLandlord} showContact={isLandlord} />
                   ))}
                 </div>
+
+                <SharedDocuments
+                  rental={rental}
+                  isLandlord={isLandlord}
+                  isBusy={isBusy}
+                  onSave={(documents) => saveDocuments(rental, documents)}
+                />
 
                 {rental.terms && (
                   <dl className="mt-4 grid gap-4 border-t border-slate-200 pt-4 text-sm sm:grid-cols-4">

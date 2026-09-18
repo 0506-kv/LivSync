@@ -19,6 +19,13 @@ const validateRentalRequest = [
 
         return true;
     }),
+    validateDocumentSelections(false),
+    handleValidationErrors,
+];
+
+const validateRentalDocuments = [
+    param('rentalId').isMongoId().withMessage('Invalid rental id'),
+    validateDocumentSelections(true),
     handleValidationErrors,
 ];
 
@@ -61,10 +68,45 @@ function handleValidationErrors(req, res, next) {
     return next();
 }
 
+function validateDocumentSelections(required) {
+    const chain = body('documents');
+
+    if (!required) chain.optional();
+
+    return chain
+        .isArray({ max: 12 }).withMessage('Documents must be a list of up to 12 selections')
+        .bail()
+        .custom((documents) => {
+            const requirements = new Set();
+            const selectedDocuments = new Set();
+
+            for (const selection of documents) {
+                if (!selection || !/^[a-f\d]{24}$/i.test(String(selection.requirementId || ''))) {
+                    throw new Error('Each document selection needs a valid requirement');
+                }
+                if (!/^[a-f\d]{24}$/i.test(String(selection.documentId || ''))) {
+                    throw new Error('Each document selection needs a valid vault document');
+                }
+                if (requirements.has(String(selection.requirementId))) {
+                    throw new Error('Select one document for each requirement');
+                }
+                if (selectedDocuments.has(String(selection.documentId))) {
+                    throw new Error('Use a separate file for each requested document');
+                }
+
+                requirements.add(String(selection.requirementId));
+                selectedDocuments.add(String(selection.documentId));
+            }
+
+            return true;
+        });
+}
+
 module.exports = {
     validateRentalRequest,
     validateOfflineConfirmation,
     validateRentalDecision,
     validateRentalId,
+    validateRentalDocuments,
     validatePaymentVerification,
 };

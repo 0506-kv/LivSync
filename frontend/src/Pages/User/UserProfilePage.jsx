@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import UserNavbar from '../../Components/User/UserNavbar'
+import DocumentVault from '../../Components/User/DocumentVault'
 import { useAuth } from '../../Context/AuthContext'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
@@ -151,6 +152,10 @@ function UserProfilePage() {
                 <div><dt className="text-sm text-slate-500">Gender</dt><dd className="mt-1 font-medium capitalize">{labelOf(user.gender || '')}</dd></div>
               </dl>
             </section>
+
+            <div className="mt-6">
+              <DocumentVault />
+            </div>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-6">
               <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">

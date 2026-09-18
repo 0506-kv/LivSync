@@ -20,6 +20,49 @@ const paymentSchema = new mongoose.Schema(
     { _id: false }
 );
 
+// A listing requirement is copied onto the application. Keeping the original listing
+// requirement id lets the UI map a tenant's selected vault file without coupling an
+// in-progress application to future listing edits.
+const documentRequirementSchema = new mongoose.Schema(
+    {
+        requirementId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true,
+        },
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 100,
+        },
+    },
+    { _id: false }
+);
+
+const documentSubmissionSchema = new mongoose.Schema(
+    {
+        tenant: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true,
+        },
+        requirementId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true,
+        },
+        document: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'TenantDocument',
+            required: true,
+        },
+        sharedAt: {
+            type: Date,
+            default: Date.now,
+        },
+    },
+    { _id: false }
+);
+
 const rentalSchema = new mongoose.Schema(
     {
         user: {
@@ -88,6 +131,16 @@ const rentalSchema = new mongoose.Schema(
                 default: '',
             },
         },
+        documentRequirements: {
+            type: [documentRequirementSchema],
+            default: [],
+        },
+        // The submission is an explicit, per-application share. A vault document is not
+        // visible to a landlord merely because it exists in the tenant's account.
+        documentSubmissions: {
+            type: [documentSubmissionSchema],
+            default: [],
+        },
         status: {
             type: String,
             enum: ['pending', 'accepted', 'rejected', 'paid'],
@@ -126,6 +179,7 @@ rentalSchema.index({ landlord: 1, createdAt: -1 });
 rentalSchema.index({ user: 1, createdAt: -1 });
 rentalSchema.index({ buddy: 1, createdAt: -1 });
 rentalSchema.index({ 'payments.orderId': 1 }, { sparse: true });
+rentalSchema.index({ 'documentSubmissions.document': 1 });
 
 const Rental = mongoose.model('Rental', rentalSchema);
 

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import RequiredDocumentsPicker from './RequiredDocumentsPicker'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
 
@@ -20,13 +21,14 @@ function previewShares(totalDue, mode, value) {
   return { mine, theirs: totalDue - mine }
 }
 
-function RentalRequestForm({ listingId, totalDue = 0 }) {
+function RentalRequestForm({ listingId, totalDue = 0, documentRequirements = [] }) {
   const [isOpen, setIsOpen] = useState(false)
   const [form, setForm] = useState({ moveInDate: today(), durationMonths: 12, occupants: 1, note: '', message: '', buddyId: '', splitMode: 'even', splitValue: 50 })
   const [buddies, setBuddies] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [isSent, setIsSent] = useState(false)
+  const [selectedDocuments, setSelectedDocuments] = useState([])
 
   // Only matched buddies can be named on a request, so the list is the server's answer.
   useEffect(() => {
@@ -72,6 +74,7 @@ function RentalRequestForm({ listingId, totalDue = 0 }) {
             occupants: Number(form.occupants),
             note: form.note,
           },
+          documents: selectedDocuments,
         },
         { withCredentials: true },
       )
@@ -179,6 +182,13 @@ function RentalRequestForm({ listingId, totalDue = 0 }) {
         Message to the landlord
         <textarea id="message" name="message" rows={3} minLength={10} maxLength={1000} value={form.message} onChange={handleChange} required placeholder="Introduce yourself and say why this place suits you." className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-700" />
       </label>
+      <RequiredDocumentsPicker
+        requirements={documentRequirements}
+        selectedDocuments={selectedDocuments}
+        onChange={setSelectedDocuments}
+        disabled={isSubmitting}
+        title="Documents requested by this landlord"
+      />
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button type="submit" disabled={isSubmitting} className="flex-1 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">

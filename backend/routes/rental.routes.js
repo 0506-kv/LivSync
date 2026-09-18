@@ -1,6 +1,7 @@
 const express = require('express');
 const {
     createRental,
+    updateRentalDocuments,
     getRentals,
     decideRental,
     createPaymentOrder,
@@ -16,6 +17,7 @@ const {
     validateRentalRequest,
     validateRentalDecision,
     validateRentalId,
+    validateRentalDocuments,
     validatePaymentVerification,
     validateOfflineConfirmation,
 } = require('../middlewares/rental.middleware');
@@ -32,6 +34,7 @@ router.use(requireParticipant);
 
 router.get('/', getRentals);
 router.post('/', requireTenant, validateRentalRequest, createRental);
+router.put('/:rentalId/documents', requireTenant, validateRentalDocuments, updateRentalDocuments);
 router.patch('/:rentalId/decision', requireLandlord, validateRentalDecision, decideRental);
 router.post('/:rentalId/payment/order', requireTenant, validateRentalId, createPaymentOrder);
 router.post('/:rentalId/payment/verify', requireTenant, validatePaymentVerification, verifyPayment);
