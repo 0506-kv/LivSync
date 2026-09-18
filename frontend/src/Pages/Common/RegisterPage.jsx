@@ -87,13 +87,8 @@ function RegisterPage() {
         token: response.data?.data?.token || null,
         phone: account.phone,
       })
-      // A landlord signs once; every rental agreement is stamped with it, so collect it up front.
-      if (isLandlord) {
-        navigate(account.hasSignature ? '/landlord' : '/landlord/signature', { replace: true })
-        return
-      }
-
-      navigate('/user', { replace: true })
+      // The code is already in their inbox, so the verification step comes before anything else.
+      navigate('/verify-email', { replace: true })
     } catch (requestError) {
       setError(requestError.response?.data?.message || requestError.message || 'Unable to create your account')
     } finally {

@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import UserNavbar from '../../Components/User/UserNavbar'
+import VerifiedBadge from '../../Components/Common/VerifiedBadge'
 import { useAuth } from '../../Context/AuthContext'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
@@ -68,12 +69,25 @@ function UserHomePage() {
           </div>
         )}
 
+        {user && !isLoading && !error && !user.emailVerified && (
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <p>Your email is not verified yet. Verified tenants stand out to landlords and BuddyUp matches.</p>
+            <button type="button" onClick={() => navigate('/verify-email')} className="rounded-md bg-amber-600 px-3 py-2 font-semibold text-white hover:bg-amber-700">Verify email</button>
+          </div>
+        )}
+
         {user && !isLoading && !error && (
           <section id="profile" className="mt-8 max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold">Personal details</h2>
             <dl className="mt-5 grid gap-5 sm:grid-cols-2">
               <div><dt className="text-sm text-slate-500">Name</dt><dd className="mt-1 font-medium">{user.name}</dd></div>
-              <div><dt className="text-sm text-slate-500">Email</dt><dd className="mt-1 font-medium">{user.email}</dd></div>
+              <div>
+                <dt className="text-sm text-slate-500">Email</dt>
+                <dd className="mt-1 flex flex-wrap items-center gap-2 font-medium">
+                  {user.email}
+                  <VerifiedBadge verified={user.emailVerified} unverifiedLabel="Not verified" />
+                </dd>
+              </div>
               <div><dt className="text-sm text-slate-500">Phone</dt><dd className="mt-1 font-medium">{user.phone}</dd></div>
               <div><dt className="text-sm text-slate-500">Date of birth</dt><dd className="mt-1 font-medium">{user.dob ? new Date(user.dob).toLocaleDateString() : '—'}</dd></div>
               <div><dt className="text-sm text-slate-500">Gender</dt><dd className="mt-1 font-medium capitalize">{user.gender?.replaceAll('-', ' ') || '—'}</dd></div>

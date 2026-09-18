@@ -227,6 +227,7 @@ function BuddyPage() {
                   threadUrl={`${BASE_URL}/buddies/${activeId}`}
                   title={activeBuddy?.peer?.name || 'Buddy'}
                   subtitle="Agree on a place and a cost split, then apply from any listing"
+                  verified={activeBuddy?.peer?.emailVerified}
                   refreshToken={refreshToken}
                   onSent={refresh}
                   onError={handleError}

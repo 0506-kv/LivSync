@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useEffect, useRef, useState } from 'react'
+import VerifiedBadge from '../Common/VerifiedBadge'
 
 function formatTime(value) {
   return value ? new Date(value).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : ''
@@ -7,7 +8,7 @@ function formatTime(value) {
 
 // Mounted with key={threadUrl}, so switching threads remounts with clean state. The url is
 // passed in because the same thread works for a landlord conversation and a BuddyUp match.
-function MessageThread({ threadUrl, title, subtitle, refreshToken, onSent, onError }) {
+function MessageThread({ threadUrl, title, subtitle, verified, refreshToken, onSent, onError }) {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [draft, setDraft] = useState('')
@@ -89,7 +90,10 @@ function MessageThread({ threadUrl, title, subtitle, refreshToken, onSent, onErr
   return (
     <>
       <header className="border-b border-slate-200 px-5 py-3">
-        <p className="font-semibold">{title}</p>
+        <p className="flex flex-wrap items-center gap-2 font-semibold">
+          {title}
+          <VerifiedBadge verified={verified} label="Verified" size="xs" />
+        </p>
         <p className="text-xs text-slate-500">{subtitle}</p>
       </header>
 

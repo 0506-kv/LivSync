@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import RequestCallForm from '../../Components/Calls/RequestCallForm'
+import VerifiedBadge from '../../Components/Common/VerifiedBadge'
 import ListingChat from '../../Components/Listings/ListingChat'
 import ListingModel from '../../Components/Listings/ListingModel'
 import RentalRequestForm from '../../Components/Rentals/RentalRequestForm'
@@ -154,7 +155,10 @@ function ListingDetailPage() {
                   <div className="flex justify-between gap-4"><dt className="text-slate-500">Brokerage fee</dt><dd>₹{formatAmount(listing.brokerageFee)}</dd></div>
                 </dl>
                 <div className="mt-6 border-t border-slate-200 pt-5 text-sm">
-                  <p className="font-medium">Listed by {listing.landlord?.name || 'Landlord'}</p>
+                  <p className="flex flex-wrap items-center gap-2 font-medium">
+                    Listed by {listing.landlord?.name || 'Landlord'}
+                    <VerifiedBadge verified={listing.landlord?.emailVerified} label="Verified landlord" />
+                  </p>
                   {listing.landlord?.companyName && <p className="mt-1 text-slate-600">{listing.landlord.companyName}</p>}
                   {isSoldOut ? (
                     <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-center font-semibold text-red-700">

@@ -38,6 +38,11 @@ function LoginPage() {
         token: response.data?.data?.token || null,
         phone: account.phone,
       })
+      if (!account.emailVerified) {
+        navigate('/verify-email', { replace: true })
+        return
+      }
+
       // A landlord signs once; every rental agreement is stamped with it, so collect it up front.
       if (accountType === 'landlord') {
         navigate(account.hasSignature ? '/landlord' : '/landlord/signature', { replace: true })

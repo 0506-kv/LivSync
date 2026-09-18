@@ -4,8 +4,8 @@ const Listing = require('../models/listing.model');
 
 const DEFAULT_MESSAGE_LIMIT = 50;
 const POPULATE = [
-    { path: 'user', select: 'name' },
-    { path: 'landlord', select: 'name companyName businessType verificationStatus' },
+    { path: 'user', select: 'name emailVerified' },
+    { path: 'landlord', select: 'name companyName businessType verificationStatus emailVerified' },
     { path: 'listing', select: 'title location.city photos' },
 ];
 
@@ -27,6 +27,7 @@ function serializeConversation(conversation, role) {
         counterpart: counterpart && {
             id: counterpart._id,
             name: counterpart.companyName || counterpart.name,
+            emailVerified: counterpart.emailVerified,
             role: otherRole(role),
         },
         lastMessage: conversation.lastMessage?.sentAt ? conversation.lastMessage : null,

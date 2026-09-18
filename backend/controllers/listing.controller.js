@@ -2,7 +2,7 @@ const axios = require('axios');
 const Listing = require('../models/listing.model');
 const Landlord = require('../models/landlord.model');
 
-const LANDLORD_FIELDS = 'name companyName businessType verificationStatus';
+const LANDLORD_FIELDS = 'name companyName businessType verificationStatus emailVerified';
 // A rented listing stays readable so tenants see it marked sold out; an archived one is gone.
 const TENANT_VISIBLE = ['published', 'rented'];
 const EDITABLE_FIELDS = [

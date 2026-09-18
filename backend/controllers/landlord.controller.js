@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const Landlord = require('../models/landlord.model');
 const { getCookieOptions } = require('../middlewares/auth.middleware');
+const { issueOtpQuietly } = require('./verification.controller');
 
 const COOKIE_NAME = 'token';
 const TOKEN_DURATION = '7d';
@@ -15,6 +16,8 @@ function serializeLandlord(landlord) {
         name: landlord.name,
         phone: landlord.phone,
         email: landlord.email,
+        emailVerified: landlord.emailVerified,
+        emailVerifiedAt: landlord.emailVerifiedAt || null,
         businessType: landlord.businessType,
         companyName: landlord.companyName,
         address: landlord.address,
@@ -63,6 +66,8 @@ async function registerLandlord(req, res) {
             profileDescription,
         });
         const token = createToken(landlord.id);
+
+        issueOtpQuietly(landlord, 'landlord');
 
         return res.status(201).cookie(COOKIE_NAME, token, getCookieOptions()).json({
             success: true,

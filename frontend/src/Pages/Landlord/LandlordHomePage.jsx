@@ -2,6 +2,7 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import LandlordNavbar from '../../Components/Landlord/LandlordNavbar'
+import VerifiedBadge from '../../Components/Common/VerifiedBadge'
 import { useAuth } from '../../Context/AuthContext'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
@@ -68,12 +69,25 @@ function LandlordHomePage() {
           </div>
         )}
 
+        {landlord && !isLoading && !error && !landlord.emailVerified && (
+          <div className="mt-8 flex max-w-2xl flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <p>Your email is not verified yet. Tenants see a verified badge on the listings of landlords who confirm their email.</p>
+            <Link to="/verify-email" className="rounded-md bg-amber-600 px-3 py-2 font-semibold text-white hover:bg-amber-700">Verify email</Link>
+          </div>
+        )}
+
         {landlord && !isLoading && !error && (
           <section id="profile" className="mt-8 max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold">Business details</h2>
             <dl className="mt-5 grid gap-5 sm:grid-cols-2">
               <div><dt className="text-sm text-slate-500">Name</dt><dd className="mt-1 font-medium">{landlord.name}</dd></div>
-              <div><dt className="text-sm text-slate-500">Email</dt><dd className="mt-1 font-medium">{landlord.email}</dd></div>
+              <div>
+                <dt className="text-sm text-slate-500">Email</dt>
+                <dd className="mt-1 flex flex-wrap items-center gap-2 font-medium">
+                  {landlord.email}
+                  <VerifiedBadge verified={landlord.emailVerified} unverifiedLabel="Not verified" />
+                </dd>
+              </div>
               <div><dt className="text-sm text-slate-500">Phone</dt><dd className="mt-1 font-medium">{landlord.phone}</dd></div>
               <div><dt className="text-sm text-slate-500">Account type</dt><dd className="mt-1 font-medium capitalize">{landlord.businessType}</dd></div>
               <div><dt className="text-sm text-slate-500">Company</dt><dd className="mt-1 font-medium">{landlord.companyName || '—'}</dd></div>

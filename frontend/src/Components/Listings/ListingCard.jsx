@@ -1,3 +1,5 @@
+import VerifiedBadge from '../Common/VerifiedBadge'
+
 function formatRent(value) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(value) || 0)
 }
@@ -26,7 +28,10 @@ function ListingCard({ listing, footer }) {
             {isSoldOut ? 'Sold out' : readableValue(listing.status)}
           </span>
         </div>
-        <p className="mt-2 text-sm text-slate-600">{listing.location?.city}, {listing.location?.state}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="text-sm text-slate-600">{listing.location?.city}, {listing.location?.state}</p>
+          <VerifiedBadge verified={listing.landlord?.emailVerified} label="Verified landlord" size="xs" />
+        </div>
         <p className="mt-4 text-xl font-semibold text-slate-900">₹{formatRent(monthlyRent)} <span className="text-sm font-normal text-slate-500">/ month</span></p>
         <p className="mt-3 text-sm text-slate-600">
           {listing.bedrooms} bed · {listing.bathrooms} bath · {listing.areaSqFt} sq ft · {readableValue(listing.roomType)}

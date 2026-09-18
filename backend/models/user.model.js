@@ -52,6 +52,13 @@ const userSchema = new mongoose.Schema(
             lowercase: true,
             match: /^\S+@\S+\.\S+$/,
         },
+        emailVerified: {
+            type: Boolean,
+            default: false,
+        },
+        emailVerifiedAt: {
+            type: Date,
+        },
         dob: {
             type: Date,
             required: true,

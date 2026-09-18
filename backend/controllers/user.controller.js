@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const { getCookieOptions } = require('../middlewares/auth.middleware');
+const { issueOtpQuietly } = require('./verification.controller');
 
 const COOKIE_NAME = 'token';
 const TOKEN_DURATION = '7d';
@@ -15,6 +16,8 @@ function serializeUser(user) {
         name: user.name,
         phone: user.phone,
         email: user.email,
+        emailVerified: user.emailVerified,
+        emailVerifiedAt: user.emailVerifiedAt || null,
         dob: user.dob,
         gender: user.gender,
         role: user.role,
@@ -36,6 +39,8 @@ async function registerUser(req, res) {
 
         const user = await User.create({ name, phone, email, dob, gender, password, role });
         const token = createToken(user.id);
+
+        issueOtpQuietly(user, 'user');
 
         return res.status(201).cookie(COOKIE_NAME, token, getCookieOptions()).json({
             success: true,

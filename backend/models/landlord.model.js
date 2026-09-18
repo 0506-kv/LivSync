@@ -25,6 +25,13 @@ const landlordSchema = new mongoose.Schema(
             lowercase: true,
             match: /^\S+@\S+\.\S+$/,
         },
+        emailVerified: {
+            type: Boolean,
+            default: false,
+        },
+        emailVerifiedAt: {
+            type: Date,
+        },
         password: {
             type: String,
             required: true,

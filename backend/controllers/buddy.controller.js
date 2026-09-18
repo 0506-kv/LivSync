@@ -5,7 +5,7 @@ const Message = require('../models/message.model');
 const DECK_LIMIT = 20;
 const CANDIDATE_LIMIT = 200;
 const DEFAULT_MESSAGE_LIMIT = 50;
-const PROFILE_FIELDS = 'name gender dob preferences';
+const PROFILE_FIELDS = 'name gender dob preferences emailVerified';
 
 // Weights add up to 100, so the score is already a percentage.
 const WEIGHTS = {
@@ -110,6 +110,7 @@ function serializeProfile(user) {
         id: user._id,
         name: user.name,
         gender: user.gender,
+        emailVerified: user.emailVerified,
         age: ageOf(user.dob),
         preferences: user.preferences,
     };

@@ -6,6 +6,7 @@ import CallsPage from './Pages/Calls/CallsPage'
 import LandingPage from './Pages/Common/LandingPage'
 import LoginPage from './Pages/Common/LoginPage'
 import RegisterPage from './Pages/Common/RegisterPage'
+import VerifyEmailPage from './Pages/Common/VerifyEmailPage'
 import LandlordHomePage from './Pages/Landlord/LandlordHomePage'
 import LandlordSignaturePage from './Pages/Landlord/LandlordSignaturePage'
 import LandlordListingsPage from './Pages/Listings/LandlordListingsPage'
@@ -31,6 +32,14 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route
+        path="/verify-email"
+        element={(
+          <RoleRoute role={['user', 'landlord']}>
+            <VerifyEmailPage />
+          </RoleRoute>
+        )}
+      />
       <Route
         path="/user"
         element={(

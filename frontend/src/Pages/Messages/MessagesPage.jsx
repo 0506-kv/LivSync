@@ -145,6 +145,7 @@ function MessagesPage() {
                 threadUrl={`${BASE_URL}/messages/conversations/${activeId}`}
                 title={activeConversation?.counterpart?.name || 'Conversation'}
                 subtitle={activeConversation?.listing?.title || ''}
+                verified={activeConversation?.counterpart?.emailVerified}
                 refreshToken={refreshToken}
                 onSent={refresh}
                 onError={handleError}

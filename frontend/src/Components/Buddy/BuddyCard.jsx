@@ -1,3 +1,4 @@
+import VerifiedBadge from '../Common/VerifiedBadge'
 const labelOf = (value) => String(value || '').replaceAll('-', ' ')
 
 function formatBudget(budget) {
@@ -23,7 +24,10 @@ function BuddyCard({ profile, onSwipe, isBusy }) {
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{profile.name}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-semibold tracking-tight">{profile.name}</h2>
+            <VerifiedBadge verified={profile.emailVerified} label="Verified" size="xs" />
+          </div>
           <p className="mt-1 text-sm text-slate-500 capitalize">
             {[profile.age && `${profile.age}`, labelOf(profile.gender), preferences.occupation].filter(Boolean).join(' · ')}
           </p>
