@@ -1,7 +1,9 @@
 import axios from 'axios'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import Navbar from '../../Components/Common/Navbar'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
+import { AccountSwitch, AuthHeader, ErrorNote, Field, LABEL, PasswordField, Select, SubmitButton, Textarea } from '../../Components/Auth/AuthKit'
+import ProfileCard from '../../Components/Auth/ProfileCard'
 import { useAuth } from '../../Context/AuthContext'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
@@ -10,6 +12,7 @@ const PROPERTY_TYPES = ['apartment', 'house', 'room', 'commercial']
 function RegisterPage() {
   const navigate = useNavigate()
   const { setSession } = useAuth()
+  const reduce = useReducedMotion()
   const [accountType, setAccountType] = useState('user')
   const [form, setForm] = useState({
     name: '',
@@ -49,9 +52,9 @@ function RegisterPage() {
     setError('')
     setIsSubmitting(true)
 
-    const isLandlord = accountType === 'landlord'
-    const endpoint = isLandlord ? '/landlord/register' : '/auth/register'
-    const payload = isLandlord
+    const isLandlordAccount = accountType === 'landlord'
+    const endpoint = isLandlordAccount ? '/landlord/register' : '/auth/register'
+    const payload = isLandlordAccount
       ? {
           name: form.name,
           phone: form.phone,
@@ -76,7 +79,7 @@ function RegisterPage() {
 
     try {
       const response = await axios.post(`${BASE_URL}${endpoint}`, payload, { withCredentials: true })
-      const account = isLandlord ? response.data?.data?.landlord : response.data?.data?.user
+      const account = isLandlordAccount ? response.data?.data?.landlord : response.data?.data?.user
 
       if (!response.data?.success || !account) {
         throw new Error(response.data?.message || 'Unable to create your account')
@@ -97,122 +100,144 @@ function RegisterPage() {
   }
 
   const isLandlord = accountType === 'landlord'
+  const fade = reduce ? { duration: 0 } : { duration: 0.32, ease: [0.2, 0.7, 0.3, 1] }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <Navbar />
-      <main className="mx-auto w-full max-w-2xl px-5 py-12">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <h1 className="text-2xl font-semibold">Create your account</h1>
-          <p className="mt-2 text-sm text-slate-600">Set up the account that best fits you.</p>
+    <div className="relative min-h-screen overflow-x-hidden bg-forest text-paper">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[760px] bg-[linear-gradient(to_right,rgba(244,241,234,.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(244,241,234,.055)_1px,transparent_1px)] bg-[size:74px_74px]"
+        style={{ maskImage: 'radial-gradient(110% 65% at 28% 0%, #000 18%, transparent 76%)', WebkitMaskImage: 'radial-gradient(110% 65% at 28% 0%, #000 18%, transparent 76%)' }}
+      />
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_78%_12%,rgba(207,240,74,.12),transparent_70%)]" />
 
-          <div className="mt-6 grid grid-cols-2 rounded-lg bg-slate-100 p-1" aria-label="Account type">
-            {['user', 'landlord'].map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setAccountType(type)}
-                className={`rounded-md px-3 py-2 text-sm font-medium capitalize ${accountType === type ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}
-                aria-pressed={accountType === type}
-              >
-                {type}
-              </button>
-            ))}
+      <div className="relative mx-auto w-full max-w-[1180px] px-5 py-6 sm:px-10 lg:px-14">
+        <AuthHeader to="/login">Already have an account? Log in</AuthHeader>
+
+        <main className="grid items-start gap-12 py-10 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-16 lg:py-16">
+          <div className="min-w-0">
+            <h1 className="max-w-[13em] font-display text-[38px] font-bold leading-[.98] tracking-[-.042em] text-balance sm:text-5xl">
+              Fill in your side of the listing.
+            </h1>
+            <p className="mt-5 max-w-[34em] text-[15.5px] leading-relaxed text-forest-mute text-pretty">
+              We ask for the same completeness we ask of every property here. Everything you type builds the profile on
+              the right — the one landlords and future roommates will read.
+            </p>
+
+            <form className="mt-9" onSubmit={handleSubmit} noValidate={false}>
+              <fieldset>
+                <legend className={`${LABEL} mb-3`}>What brings you here</legend>
+                <AccountSwitch value={accountType} onChange={setAccountType} />
+              </fieldset>
+
+              <div className="mt-8 grid gap-4.5 sm:grid-cols-2">
+                <Field label="Full name" id="name" name="name" value={form.name} onChange={handleChange} autoComplete="name" required minLength="2" placeholder="Aarav Mehta" />
+                <Field label="Phone number" id="phone" name="phone" type="tel" value={form.phone} onChange={handleChange} autoComplete="tel" required placeholder="+91 98765 43210" />
+                <Field label="Email" id="email" name="email" type="email" value={form.email} onChange={handleChange} autoComplete="email" required placeholder="you@example.com" />
+                <PasswordField
+                  id="password"
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  autoComplete="new-password"
+                  required
+                  minLength="8"
+                  hint="8 characters or more"
+                />
+              </div>
+
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={accountType}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={fade}
+                  className="mt-4.5 grid gap-4.5"
+                >
+                  {isLandlord ? (
+                    <>
+                      <div className="grid gap-4.5 sm:grid-cols-2">
+                        <Select label="You rent out as" id="businessType" name="businessType" value={form.businessType} onChange={handleChange}>
+                          <option value="individual">An individual</option>
+                          <option value="company">A company</option>
+                        </Select>
+                        <Field
+                          label="Company name"
+                          hint={form.businessType === 'company' ? '' : '(optional)'}
+                          id="companyName"
+                          name="companyName"
+                          value={form.companyName}
+                          onChange={handleChange}
+                          required={form.businessType === 'company'}
+                          placeholder="Mehta Estates"
+                        />
+                      </div>
+                      <div className="grid gap-4.5 sm:grid-cols-2">
+                        <Field label="Address" id="address" name="address" value={form.address} onChange={handleChange} required minLength="5" placeholder="Baner Road" />
+                        <Field label="City" id="city" name="city" value={form.city} onChange={handleChange} required minLength="2" placeholder="Pune" />
+                      </div>
+                      <fieldset>
+                        <legend className={LABEL}>What you rent out</legend>
+                        <div className="mt-2.5 flex flex-wrap gap-2">
+                          {PROPERTY_TYPES.map((type) => {
+                            const picked = form.propertyTypes.includes(type)
+                            return (
+                              <label
+                                key={type}
+                                className={`cursor-pointer rounded-full border px-4 py-2 text-[14px] capitalize transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-lime ${picked ? 'border-lime bg-lime text-forest' : 'border-paper/20 text-forest-mute hover:border-paper/45 hover:text-paper'}`}
+                              >
+                                <input type="checkbox" value={type} checked={picked} onChange={togglePropertyType} className="sr-only" />
+                                {type}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </fieldset>
+                      <Field label="Profile description" hint="(optional)" id="profileDescription">
+                        <Textarea
+                          id="profileDescription"
+                          name="profileDescription"
+                          value={form.profileDescription}
+                          onChange={handleChange}
+                          rows="3"
+                          maxLength="500"
+                          placeholder="How you work with tenants, how quickly you reply, anything worth knowing."
+                        />
+                      </Field>
+                    </>
+                  ) : (
+                    <div className="grid gap-4.5 sm:grid-cols-2">
+                      <Field label="Date of birth" id="dob" name="dob" type="date" value={form.dob} onChange={handleChange} required />
+                      <Select label="Gender" id="gender" name="gender" value={form.gender} onChange={handleChange}>
+                        <option value="prefer-not-to-say">Prefer not to say</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="non-binary">Non-binary</option>
+                        <option value="other">Other</option>
+                      </Select>
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+
+              <div className="mt-7 grid gap-3.5">
+                <ErrorNote>{error}</ErrorNote>
+                <SubmitButton busy={isSubmitting}>
+                  {isSubmitting ? 'Creating your account' : 'Create account'}
+                </SubmitButton>
+                <p className="text-[13px] leading-snug text-[#7E9282]">
+                  We send a code to your email straight after this. Your listing or profile stays unverified until you enter it.
+                </p>
+              </div>
+            </form>
           </div>
 
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="name">
-                Full name
-                <input id="name" name="name" value={form.name} onChange={handleChange} autoComplete="name" required minLength="2" className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-              </label>
-              <label className="block text-sm font-medium text-slate-700" htmlFor="phone">
-                Phone number
-                <input id="phone" name="phone" type="tel" value={form.phone} onChange={handleChange} autoComplete="tel" required className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-              </label>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="email">
-                Email
-                <input id="email" name="email" type="email" value={form.email} onChange={handleChange} autoComplete="email" required className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-              </label>
-              <label className="block text-sm font-medium text-slate-700" htmlFor="password">
-                Password
-                <input id="password" name="password" type="password" value={form.password} onChange={handleChange} autoComplete="new-password" required minLength="8" className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-              </label>
-            </div>
-
-            {isLandlord ? (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="businessType">
-                    Account type
-                    <select id="businessType" name="businessType" value={form.businessType} onChange={handleChange} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-slate-700">
-                      <option value="individual">Individual</option>
-                      <option value="company">Company</option>
-                    </select>
-                  </label>
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="companyName">
-                    Company name {form.businessType === 'company' ? '' : '(optional)'}
-                    <input id="companyName" name="companyName" value={form.companyName} onChange={handleChange} required={form.businessType === 'company'} className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-                  </label>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="address">
-                    Address
-                    <input id="address" name="address" value={form.address} onChange={handleChange} required minLength="5" className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-                  </label>
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="city">
-                    City
-                    <input id="city" name="city" value={form.city} onChange={handleChange} required minLength="2" className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-                  </label>
-                </div>
-                <fieldset>
-                  <legend className="text-sm font-medium text-slate-700">Property types</legend>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                    {PROPERTY_TYPES.map((type) => (
-                      <label key={type} className="flex items-center gap-2 text-sm capitalize text-slate-600">
-                        <input type="checkbox" value={type} checked={form.propertyTypes.includes(type)} onChange={togglePropertyType} className="size-4 accent-slate-900" />
-                        {type}
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                <label className="block text-sm font-medium text-slate-700" htmlFor="profileDescription">
-                  Profile description <span className="font-normal text-slate-500">(optional)</span>
-                  <textarea id="profileDescription" name="profileDescription" value={form.profileDescription} onChange={handleChange} rows="3" maxLength="500" className="mt-1.5 w-full resize-y rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-                </label>
-              </>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block text-sm font-medium text-slate-700" htmlFor="dob">
-                  Date of birth
-                  <input id="dob" name="dob" type="date" value={form.dob} onChange={handleChange} required className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700" />
-                </label>
-                <label className="block text-sm font-medium text-slate-700" htmlFor="gender">
-                  Gender
-                  <select id="gender" name="gender" value={form.gender} onChange={handleChange} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-slate-700">
-                    <option value="prefer-not-to-say">Prefer not to say</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="non-binary">Non-binary</option>
-                    <option value="other">Other</option>
-                  </select>
-                </label>
-              </div>
-            )}
-
-            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-            <button type="submit" disabled={isSubmitting} className="w-full rounded-md bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-              {isSubmitting ? 'Creating account…' : `Create ${accountType} account`}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-slate-600">
-            Already registered? <Link to="/login" className="font-semibold text-slate-900 hover:underline">Log in</Link>
-          </p>
-        </div>
-      </main>
+          <div className="order-first lg:order-none lg:sticky lg:top-12">
+            <ProfileCard accountType={accountType} form={form} />
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
