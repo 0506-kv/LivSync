@@ -1,4 +1,5 @@
 const axios = require('axios');
+const geocoding = require('@mapbox/mapbox-sdk/services/geocoding');
 const Listing = require('../models/listing.model');
 const Landlord = require('../models/landlord.model');
 
@@ -165,6 +166,43 @@ async function getListingById(req, res) {
         return res.status(500).json({
             success: false,
             message: 'Unable to retrieve listing',
+            data: {},
+        });
+    }
+}
+
+// Geocoding is intentionally performed only when a visitor opens a map. This keeps
+// temporary Mapbox Geocoding results out of the database and avoids map lookups for
+// listings that are never viewed.
+async function getListingMap(req, res) {
+    try {
+        const listing = await Listing.findOne({
+            _id: req.params.listingId,
+            status: { $in: TENANT_VISIBLE },
+        }).select('title location');
+
+        if (!listing) {
+            return res.status(404).json({
+                success: false,
+                message: 'Listing not found',
+                data: {},
+            });
+        }
+
+        const accessToken = getPublicMapToken();
+        const coordinates = await geocodeLocation(listing.location, accessToken);
+
+        return res.json({
+            success: true,
+            message: 'Listing map retrieved successfully',
+            data: { coordinates, accessToken },
+        });
+    } catch (error) {
+        console.error('Listing map lookup failed:', error.message);
+
+        return res.status(error.statusCode || 502).json({
+            success: false,
+            message: error.expose ? error.message : 'Unable to load the listing map',
             data: {},
         });
     }
@@ -352,6 +390,48 @@ function getListingData(data) {
     };
 }
 
+function getPublicMapToken() {
+    const accessToken = String(process.env.MAP_TOKEN || '').trim();
+
+    if (!accessToken || !accessToken.startsWith('pk.')) {
+        const error = new Error('Map service is not configured with a public MAP_TOKEN');
+        error.statusCode = 503;
+        error.expose = true;
+        throw error;
+    }
+
+    return accessToken;
+}
+
+async function geocodeLocation(location, accessToken) {
+    const query = [location.address, location.city, location.state, location.postalCode]
+        .filter(Boolean)
+        .join(', ');
+    const response = await geocoding({ accessToken })
+        .forwardGeocode({ query, limit: 1, autocomplete: false })
+        .send();
+    const coordinates = response.body?.features?.[0]?.center;
+
+    if (!hasValidCoordinates(coordinates)) {
+        const error = new Error('We could not find this listing address on the map');
+        error.statusCode = 422;
+        error.expose = true;
+        throw error;
+    }
+
+    return coordinates;
+}
+
+function hasValidCoordinates(coordinates) {
+    return Array.isArray(coordinates)
+        && coordinates.length === 2
+        && coordinates.every(Number.isFinite)
+        && coordinates[0] >= -180
+        && coordinates[0] <= 180
+        && coordinates[1] >= -90
+        && coordinates[1] <= 90;
+}
+
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -360,6 +440,7 @@ module.exports = {
     createListing,
     getListings,
     getListingById,
+    getListingMap,
     getListingModel,
     getOwnListings,
     updateListing,

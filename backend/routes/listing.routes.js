@@ -3,6 +3,7 @@ const {
     createListing,
     getListings,
     getListingById,
+    getListingMap,
     getListingModel,
     getOwnListings,
     updateListing,
@@ -22,6 +23,7 @@ const router = express.Router();
 
 router.get('/', validateListingQuery, getListings);
 router.get('/mine', requireLandlordAuth, getOwnListings);
+router.get('/:listingId/map', validateListingId, getListingMap);
 router.get('/:listingId', validateListingId, getListingById);
 router.get('/:listingId/model', validateListingId, getListingModel);
 // Signed in only: every question costs a Gemini call.

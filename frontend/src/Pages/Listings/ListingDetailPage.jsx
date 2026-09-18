@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import RequestCallForm from '../../Components/Calls/RequestCallForm'
 import VerifiedBadge from '../../Components/Common/VerifiedBadge'
 import ListingChat from '../../Components/Listings/ListingChat'
+import ListingMap from '../../Components/Listings/ListingMap'
 import ListingModel from '../../Components/Listings/ListingModel'
 import RentalRequestForm from '../../Components/Rentals/RentalRequestForm'
 import UserNavbar from '../../Components/User/UserNavbar'
@@ -142,6 +143,11 @@ function ListingDetailPage() {
                     <ul className="mt-4 flex flex-wrap gap-2">{listing.amenities.map((amenity) => <li key={amenity} className="rounded-full bg-slate-200 px-3 py-1.5 text-sm text-slate-700">{amenity}</li>)}</ul>
                   ) : <p className="mt-3 text-slate-600">No amenities have been listed.</p>}
                 </section>
+                <ListingMap
+                  listingId={listingId}
+                  title={listing.title}
+                  address={`${listing.location.address}, ${listing.location.city}, ${listing.location.state} ${listing.location.postalCode}`}
+                />
               </div>
 
               <aside className="h-fit rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
