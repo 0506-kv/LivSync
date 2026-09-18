@@ -13,6 +13,11 @@ function requireAuth(req, res, next) {
         }
 
         const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+        if (!payload.userId) {
+            throw new Error('Invalid user session');
+        }
+
         req.userId = payload.userId;
         return next();
     } catch (error) {
