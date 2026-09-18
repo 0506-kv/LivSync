@@ -1,6 +1,8 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './Context/AuthContext'
 import BuddyPage from './Pages/Buddy/BuddyPage'
+import CallsPage from './Pages/Calls/CallsPage'
 import LandingPage from './Pages/Common/LandingPage'
 import LoginPage from './Pages/Common/LoginPage'
 import RegisterPage from './Pages/Common/RegisterPage'
@@ -13,6 +15,9 @@ import RentalsPage from './Pages/Rentals/RentalsPage'
 import UserListingsPage from './Pages/Listings/UserListingsPage'
 import UserHomePage from './Pages/User/UserHomePage'
 import UserProfilePage from './Pages/User/UserProfilePage'
+
+// The Agora SDK is a megabyte of WebRTC; it only loads once someone opens a call room.
+const CallRoomPage = lazy(() => import('./Pages/Calls/CallRoomPage'))
 
 function RoleRoute({ role, children }) {
   const { role: currentRole } = useAuth()
@@ -95,6 +100,24 @@ function App() {
         element={(
           <RoleRoute role={['user', 'landlord']}>
             <MessagesPage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/calls"
+        element={(
+          <RoleRoute role={['user', 'landlord']}>
+            <CallsPage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/calls/:callId/room"
+        element={(
+          <RoleRoute role={['user', 'landlord']}>
+            <Suspense fallback={<p className="p-8 text-sm text-slate-600">Loading call…</p>}>
+              <CallRoomPage />
+            </Suspense>
           </RoleRoute>
         )}
       />

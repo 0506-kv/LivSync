@@ -9,6 +9,7 @@ const listingRoutes = require('./routes/listing.routes');
 const messageRoutes = require('./routes/message.routes');
 const rentalRoutes = require('./routes/rental.routes');
 const buddyRoutes = require('./routes/buddy.routes');
+const callRoutes = require('./routes/call.routes');
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use('/listings', listingRoutes);
 app.use('/messages', messageRoutes);
 app.use('/rentals', rentalRoutes);
 app.use('/buddies', buddyRoutes);
+app.use('/calls', callRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

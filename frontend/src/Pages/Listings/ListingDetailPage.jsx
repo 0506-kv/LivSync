@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import RequestCallForm from '../../Components/Calls/RequestCallForm'
 import RentalRequestForm from '../../Components/Rentals/RentalRequestForm'
 import UserNavbar from '../../Components/User/UserNavbar'
 
@@ -168,6 +169,7 @@ function ListingDetailPage() {
                       </button>
                       {contactError && <p className="mt-2 text-red-600">{contactError}</p>}
                       <RentalRequestForm listingId={listingId} totalDue={monthlyRent + (listing.securityDeposit || 0) + (listing.brokerageFee || 0)} />
+                      <RequestCallForm listingId={listingId} />
                     </>
                   )}
                   {listing.floorPlanUrl && <a href={listing.floorPlanUrl} target="_blank" rel="noreferrer" className="mt-4 block font-semibold text-slate-900 hover:underline">View floor plan</a>}
