@@ -10,6 +10,14 @@ function createToken(userId) {
     return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: TOKEN_DURATION });
 }
 
+function invalidateUserSession(res) {
+    return res.clearCookie(COOKIE_NAME, getCookieOptions(false)).status(401).json({
+        success: false,
+        message: 'Your session is no longer valid. Please log in again.',
+        data: {},
+    });
+}
+
 function serializeUser(user) {
     return {
         id: user._id,
@@ -118,13 +126,10 @@ async function getUserProfile(req, res) {
         const user = await User.findById(req.userId);
 
         if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found',
-                data: {},
-            });
+            return invalidateUserSession(res);
         }
 
+        res.set('Cache-Control', 'private, no-store');
         return res.json({
             success: true,
             message: 'User profile retrieved successfully',
@@ -145,11 +150,7 @@ async function updateUserPreferences(req, res) {
         const user = await User.findById(req.userId);
 
         if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found',
-                data: {},
-            });
+            return invalidateUserSession(res);
         }
 
         user.preferences = { ...user.preferences?.toObject(), ...req.body.preferences };
@@ -169,4 +170,4 @@ async function updateUserPreferences(req, res) {
     }
 }
 
-module.exports = { registerUser, loginUser, logoutUser, getUserProfile, updateUserPreferences };
+module.exports = { registerUser, loginUser, logoutUser, getUserProfile, updateUserPreferences, invalidateUserSession };

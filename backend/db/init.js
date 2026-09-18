@@ -8,6 +8,11 @@ const Listing = require('../models/listing.model');
 // Run from this folder: node init.js
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
+if (process.env.ALLOW_DATABASE_RESET !== 'true') {
+    console.error('Refusing to reset the database. Re-run with ALLOW_DATABASE_RESET=true only for an intentional local seed.');
+    process.exit(1);
+}
+
 const MODEL_URLS = [
     'https://drive.google.com/file/d/16_qPSl42Jfw-o4MS5GpMncByPXTzCdtR/view?usp=sharing',
     'https://drive.google.com/file/d/1LyxOVF5_y4BycF26_TBYGNz_exm9vpR0/view?usp=sharing',
