@@ -1,13 +1,17 @@
 const crypto = require('crypto');
 const axios = require('axios');
+const mongoose = require('mongoose');
 const PDFDocument = require('pdfkit');
 const Rental = require('../models/rental.model');
 const Listing = require('../models/listing.model');
 const Landlord = require('../models/landlord.model');
+const Buddy = require('../models/buddy.model');
 
 const RAZORPAY_ORDERS_URL = 'https://api.razorpay.com/v1/orders';
+const TENANT_FIELDS = 'name email phone dob gender preferences';
 const POPULATE = [
-    { path: 'user', select: 'name email phone dob gender' },
+    { path: 'user', select: TENANT_FIELDS },
+    { path: 'buddy', select: TENANT_FIELDS },
     { path: 'landlord', select: 'name companyName businessType email phone address city verificationStatus' },
     { path: 'listing', select: 'title location rent securityDeposit brokerageFee photos propertyType roomType areaSqFt bedrooms bathrooms furnished' },
 ];
@@ -18,6 +22,14 @@ function formatMoney(value) {
 
 function formatDate(value) {
     return value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+}
+
+function idOf(value) {
+    return value?._id || value;
+}
+
+function toObjectId(value) {
+    return new mongoose.Types.ObjectId(String(idOf(value)));
 }
 
 // The deal the landlord is agreeing to: one month up front, plus deposit and brokerage.
@@ -34,6 +46,30 @@ function buildTerms(listing) {
     };
 }
 
+// One payable share per tenant. The requester's share is whatever they asked for — a
+// percentage of the frozen total or a flat amount — clamped so both tenants owe something,
+// and the buddy takes the rest, so the two shares always add back up to the exact total.
+function buildPayments(rental) {
+    const total = rental.terms.totalDue;
+
+    if (!rental.buddy) {
+        return [{ payer: idOf(rental.user), share: 100, amount: total }];
+    }
+
+    const asked = rental.split.mode === 'amount' ? rental.split.value : (total * rental.split.value) / 100;
+    const mine = total < 2 ? total : Math.min(Math.max(Math.round(asked), 1), total - 1);
+    const minePercent = total ? Math.round((mine / total) * 100) : 50;
+
+    return [
+        { payer: idOf(rental.user), share: minePercent, amount: mine },
+        { payer: idOf(rental.buddy), share: 100 - minePercent, amount: total - mine },
+    ];
+}
+
+function paymentFor(rental, userId) {
+    return rental.payments.find((payment) => String(payment.payer) === String(idOf(userId)));
+}
+
 function timingSafeEqual(a, b) {
     const left = Buffer.from(String(a || ''));
     const right = Buffer.from(String(b || ''));
@@ -47,26 +83,48 @@ function isValidPaymentSignature({ orderId, paymentId, signature, secret }) {
     return timingSafeEqual(expected, signature);
 }
 
-function serializeRental(rental, role) {
+function serializeParty(person, payment, viewerId) {
+    return {
+        id: person._id,
+        name: person.name,
+        email: person.email,
+        phone: person.phone,
+        dob: person.dob,
+        gender: person.gender,
+        lifestyle: person.preferences,
+        mine: String(person._id) === String(viewerId),
+        payment: payment && {
+            share: payment.share,
+            amount: payment.amount,
+            mode: payment.mode || null,
+            paid: Boolean(payment.paidAt),
+            paidAt: payment.paidAt || null,
+            receiptNo: payment.receiptNo || null,
+        },
+    };
+}
+
+function serializeRental(rental, role, viewerId) {
     const isPaid = rental.status === 'paid';
+    const tenants = [rental.user, rental.buddy].filter((tenant) => tenant?.name);
+    const myPayment = paymentFor(rental, viewerId);
 
     return {
         id: rental._id,
         status: rental.status,
         message: rental.message,
         preferences: rental.preferences,
+        isBuddyRequest: Boolean(rental.buddy),
+        split: rental.buddy ? { mode: rental.split.mode, value: rental.split.value } : null,
         terms: rental.terms?.totalDue === undefined ? null : rental.terms,
-        payment: {
-            mode: rental.payment?.mode || null,
-            amount: rental.payment?.amount ?? null,
-            receiptNo: rental.payment?.receiptNo || null,
-            paidAt: rental.payment?.paidAt || null,
-        },
+        tenants: tenants.map((tenant) => serializeParty(tenant, paymentFor(rental, tenant._id), viewerId)),
+        myPayment: myPayment ? serializeParty({ _id: idOf(viewerId) }, myPayment, viewerId).payment : null,
         agreement: rental.agreement?.number ? rental.agreement : null,
         documents: {
-            // The receipt only exists for money that actually moved through LivSync.
+            // The agreement is only issued once every tenant has settled their share.
             agreement: isPaid,
-            receipt: isPaid && rental.payment?.mode === 'online',
+            // The receipt only exists for money that actually moved through LivSync.
+            receipt: Boolean(myPayment?.paidAt && myPayment.mode === 'online'),
         },
         listing: rental.listing && {
             id: rental.listing._id,
@@ -74,14 +132,6 @@ function serializeRental(rental, role) {
             city: rental.listing.location?.city,
             photo: rental.listing.photos?.[0] || '',
         },
-        tenant: role === 'landlord' && rental.user ? {
-            id: rental.user._id,
-            name: rental.user.name,
-            email: rental.user.email,
-            phone: rental.user.phone,
-            dob: rental.user.dob,
-            gender: rental.user.gender,
-        } : undefined,
         landlord: role === 'user' && rental.landlord ? {
             id: rental.landlord._id,
             name: rental.landlord.companyName || rental.landlord.name,
@@ -92,25 +142,40 @@ function serializeRental(rental, role) {
     };
 }
 
-async function findRentalFor(rentalId, participant) {
-    return Rental.findOne({ _id: rentalId, [participant.role]: participant.id }).populate(POPULATE);
+// A tenant reaches their own requests and the ones a buddy applied with them on.
+function scopeFor(participant) {
+    return participant.role === 'landlord'
+        ? { landlord: participant.id }
+        : { $or: [{ user: participant.id }, { buddy: participant.id }] };
 }
 
-// Claims the rental atomically so the checkout callback and the webhook cannot both issue documents.
-async function markPaid(filter, paymentFields) {
+async function findRentalFor(rentalId, participant) {
+    return Rental.findOne({ _id: rentalId, ...scopeFor(participant) }).populate(POPULATE);
+}
+
+// Claims one tenant's share atomically so the checkout callback and the webhook cannot both
+// settle it, and issues the agreement only on the share that completes the deal.
+async function settlePayment(filter, payerId, fields) {
+    const payer = toObjectId(payerId);
     const claimed = await Rental.findOneAndUpdate(
-        { ...filter, status: 'accepted' },
-        { $set: { status: 'paid', 'payment.paidAt': new Date(), ...paymentFields } },
-        { new: true }
+        { ...filter, status: 'accepted', payments: { $elemMatch: { payer, paidAt: { $exists: false } } } },
+        { $set: { 'payments.$[entry].paidAt': new Date(), ...fields } },
+        { arrayFilters: [{ 'entry.payer': payer, 'entry.paidAt': { $exists: false } }], new: true }
     );
 
     if (!claimed) return null;
 
-    const suffix = claimed.id.slice(-6).toUpperCase();
     const year = new Date().getFullYear();
+    const suffix = claimed.id.slice(-6).toUpperCase();
+    const entry = paymentFor(claimed, payer);
 
-    claimed.agreement = { number: `LS-A-${year}-${suffix}`, signedAt: new Date() };
-    if (claimed.payment.mode === 'online') claimed.payment.receiptNo = `LS-R-${year}-${suffix}`;
+    if (entry.mode === 'online') entry.receiptNo = `LS-R-${year}-${suffix}-${claimed.payments.indexOf(entry) + 1}`;
+
+    if (claimed.payments.every((payment) => payment.paidAt)) {
+        claimed.status = 'paid';
+        claimed.agreement = { number: `LS-A-${year}-${suffix}`, signedAt: new Date() };
+    }
+
     await claimed.save();
 
     return claimed.populate(POPULATE);
@@ -118,7 +183,7 @@ async function markPaid(filter, paymentFields) {
 
 async function createRental(req, res) {
     try {
-        const { listingId, message, preferences } = req.body;
+        const { listingId, message, preferences, buddyId, split } = req.body;
         const listing = await Listing.findOne({ _id: listingId, status: 'published' }).select('landlord');
 
         if (!listing) {
@@ -129,27 +194,57 @@ async function createRental(req, res) {
             });
         }
 
-        const existing = await Rental.findOne({ user: req.participant.id, listing: listing._id });
+        // Applying together is only possible once both sides have swiped right on each other.
+        if (buddyId) {
+            const match = await Buddy.findOne({ users: { $all: [req.participant.id, buddyId] }, status: 'matched' });
 
-        if (existing && existing.status !== 'rejected') {
+            if (!match) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'You can only apply with a matched buddy',
+                    data: {},
+                });
+            }
+        }
+
+        const parties = buddyId ? [req.participant.id, buddyId] : [req.participant.id];
+        const involved = await Rental.find({
+            listing: listing._id,
+            $or: [{ user: { $in: parties } }, { buddy: { $in: parties } }],
+        });
+        const live = involved.find((rental) => rental.status !== 'rejected');
+
+        if (live) {
             return res.status(409).json({
                 success: false,
-                message: 'You already have a request on this listing',
+                message: String(live.user) === String(req.participant.id)
+                    ? 'You already have a request on this listing'
+                    : 'Your buddy already has a request on this listing',
                 data: {},
             });
         }
 
         // A rejected request is reopened in place, which keeps the one-request-per-listing rule intact.
-        const rental = existing || new Rental({ user: req.participant.id, landlord: listing.landlord, listing: listing._id });
+        const rental = involved.find((existing) => String(existing.user) === String(req.participant.id))
+            || new Rental({ user: req.participant.id, landlord: listing.landlord, listing: listing._id });
 
-        rental.set({ message, preferences, status: 'pending', decidedAt: undefined });
+        rental.set({
+            message,
+            preferences,
+            buddy: buddyId || null,
+            split: (buddyId && split) || { mode: 'percent', value: 50 },
+            status: 'pending',
+            decidedAt: undefined,
+            terms: undefined,
+            payments: [],
+        });
         await rental.save();
         await rental.populate(POPULATE);
 
         return res.status(201).json({
             success: true,
             message: 'Rental request sent successfully',
-            data: { rental: serializeRental(rental, 'user') },
+            data: { rental: serializeRental(rental, 'user', req.participant.id) },
         });
     } catch (error) {
         return res.status(500).json({
@@ -163,12 +258,12 @@ async function createRental(req, res) {
 async function getRentals(req, res) {
     try {
         const { id, role } = req.participant;
-        const rentals = await Rental.find({ [role]: id }).populate(POPULATE).sort({ createdAt: -1 });
+        const rentals = await Rental.find(scopeFor(req.participant)).populate(POPULATE).sort({ createdAt: -1 });
 
         return res.json({
             success: true,
             message: 'Rental requests retrieved successfully',
-            data: { rentals: rentals.map((rental) => serializeRental(rental, role)) },
+            data: { rentals: rentals.map((rental) => serializeRental(rental, role, id)) },
         });
     } catch (error) {
         return res.status(500).json({
@@ -202,7 +297,7 @@ async function decideRental(req, res) {
         if (req.body.decision === 'accept') {
             const landlord = await Landlord.findById(req.participant.id).select('signature.signedAt');
 
-            // No signature, no agreement to hand over once the tenant pays.
+            // No signature, no agreement to hand over once the tenants pay.
             if (!landlord?.signature?.signedAt) {
                 return res.status(409).json({
                     success: false,
@@ -212,6 +307,7 @@ async function decideRental(req, res) {
             }
 
             rental.terms = buildTerms(rental.listing);
+            rental.payments = buildPayments(rental);
         }
 
         rental.status = req.body.decision === 'accept' ? 'accepted' : 'rejected';
@@ -221,7 +317,7 @@ async function decideRental(req, res) {
         return res.json({
             success: true,
             message: `Rental request ${rental.status}`,
-            data: { rental: serializeRental(rental, 'landlord') },
+            data: { rental: serializeRental(rental, 'landlord', req.participant.id) },
         });
     } catch (error) {
         return res.status(500).json({
@@ -232,11 +328,23 @@ async function decideRental(req, res) {
     }
 }
 
+// Reads back the tenant's own share after an update to it, populated and ready to serialize.
+async function updateMyPayment(rentalId, payerId, update) {
+    const payer = toObjectId(payerId);
+
+    return Rental.findOneAndUpdate(
+        { _id: rentalId, status: 'accepted', payments: { $elemMatch: { payer, paidAt: { $exists: false } } } },
+        update,
+        { arrayFilters: [{ 'entry.payer': payer, 'entry.paidAt': { $exists: false } }], new: true }
+    ).populate(POPULATE);
+}
+
 async function createPaymentOrder(req, res) {
     try {
         const rental = await findRentalFor(req.params.rentalId, req.participant);
+        const share = rental && paymentFor(rental, req.participant.id);
 
-        if (!rental) {
+        if (!rental || !share) {
             return res.status(404).json({
                 success: false,
                 message: 'Rental request not found or access denied',
@@ -244,10 +352,10 @@ async function createPaymentOrder(req, res) {
             });
         }
 
-        if (rental.status !== 'accepted') {
+        if (rental.status !== 'accepted' || share.paidAt) {
             return res.status(409).json({
                 success: false,
-                message: 'Payment opens once the landlord accepts your request',
+                message: share.paidAt ? 'You have already paid your share' : 'Payment opens once the landlord accepts your request',
                 data: {},
             });
         }
@@ -256,7 +364,7 @@ async function createPaymentOrder(req, res) {
         const response = await axios.post(
             RAZORPAY_ORDERS_URL,
             {
-                amount: Math.round(rental.terms.totalDue * 100),
+                amount: Math.round(share.amount * 100),
                 currency: 'INR',
                 receipt: rental.id,
                 notes: { rentalId: rental.id, listing: rental.listing.title },
@@ -264,10 +372,14 @@ async function createPaymentOrder(req, res) {
             { auth: { username: process.env.RAZORPAY_KEY_ID, password: process.env.RAZORPAY_KEY_SECRET } }
         );
 
-        rental.payment.mode = 'online';
-        rental.payment.amount = rental.terms.totalDue;
-        rental.payment.orderId = response.data.id;
-        await rental.save();
+        await updateMyPayment(rental._id, req.participant.id, {
+            $set: {
+                'payments.$[entry].mode': 'online',
+                'payments.$[entry].orderId': response.data.id,
+            },
+        });
+
+        const payer = rental.user._id.equals(req.participant.id) ? rental.user : rental.buddy;
 
         return res.json({
             success: true,
@@ -275,7 +387,7 @@ async function createPaymentOrder(req, res) {
             data: {
                 order: { id: response.data.id, amount: response.data.amount, currency: response.data.currency },
                 keyId: process.env.RAZORPAY_KEY_ID,
-                prefill: { name: rental.user.name, email: rental.user.email, contact: rental.user.phone },
+                prefill: { name: payer.name, email: payer.email, contact: payer.phone },
             },
         });
     } catch (error) {
@@ -305,20 +417,21 @@ async function verifyPayment(req, res) {
             });
         }
 
-        const rental = await markPaid(
-            { _id: req.params.rentalId, user: req.participant.id, 'payment.orderId': orderId },
-            { 'payment.paymentId': paymentId }
+        const rental = await settlePayment(
+            { _id: req.params.rentalId, payments: { $elemMatch: { payer: toObjectId(req.participant.id), orderId } } },
+            req.participant.id,
+            { 'payments.$[entry].paymentId': paymentId }
         );
 
         if (!rental) {
             // Already settled by the webhook, or never in a payable state.
             const settled = await findRentalFor(req.params.rentalId, req.participant);
 
-            if (settled?.status === 'paid') {
+            if (paymentFor(settled || { payments: [] }, req.participant.id)?.paidAt) {
                 return res.json({
                     success: true,
                     message: 'Payment already recorded',
-                    data: { rental: serializeRental(settled, 'user') },
+                    data: { rental: serializeRental(settled, 'user', req.participant.id) },
                 });
             }
 
@@ -332,7 +445,7 @@ async function verifyPayment(req, res) {
         return res.json({
             success: true,
             message: 'Payment successful',
-            data: { rental: serializeRental(rental, 'user') },
+            data: { rental: serializeRental(rental, 'user', req.participant.id) },
         });
     } catch (error) {
         return res.status(500).json({
@@ -345,17 +458,12 @@ async function verifyPayment(req, res) {
 
 async function chooseOfflinePayment(req, res) {
     try {
-        const rental = await findRentalFor(req.params.rentalId, req.participant);
+        const rental = await updateMyPayment(req.params.rentalId, req.participant.id, {
+            $set: { 'payments.$[entry].mode': 'in-person' },
+            $unset: { 'payments.$[entry].orderId': '' },
+        });
 
         if (!rental) {
-            return res.status(404).json({
-                success: false,
-                message: 'Rental request not found or access denied',
-                data: {},
-            });
-        }
-
-        if (rental.status !== 'accepted') {
             return res.status(409).json({
                 success: false,
                 message: 'Payment opens once the landlord accepts your request',
@@ -363,15 +471,10 @@ async function chooseOfflinePayment(req, res) {
             });
         }
 
-        rental.payment.mode = 'in-person';
-        rental.payment.amount = rental.terms.totalDue;
-        rental.payment.orderId = undefined;
-        await rental.save();
-
         return res.json({
             success: true,
             message: 'The landlord will confirm your in-person payment',
-            data: { rental: serializeRental(rental, 'user') },
+            data: { rental: serializeRental(rental, 'user', req.participant.id) },
         });
     } catch (error) {
         return res.status(500).json({
@@ -385,13 +488,18 @@ async function chooseOfflinePayment(req, res) {
 // Money paid in person never reaches LivSync, so only the landlord can attest that it arrived.
 async function confirmOfflinePayment(req, res) {
     try {
-        const rental = await Rental.findOne({
-            _id: req.params.rentalId,
-            landlord: req.participant.id,
-            'payment.mode': 'in-person',
-        });
+        const { payerId } = req.body;
+        const paid = await settlePayment(
+            {
+                _id: req.params.rentalId,
+                landlord: req.participant.id,
+                payments: { $elemMatch: { payer: toObjectId(payerId), mode: 'in-person' } },
+            },
+            payerId,
+            {}
+        );
 
-        if (!rental) {
+        if (!paid) {
             return res.status(404).json({
                 success: false,
                 message: 'No in-person payment is awaiting your confirmation',
@@ -399,20 +507,10 @@ async function confirmOfflinePayment(req, res) {
             });
         }
 
-        const paid = await markPaid({ _id: rental._id, landlord: req.participant.id }, {});
-
-        if (!paid) {
-            return res.status(409).json({
-                success: false,
-                message: 'This request is not awaiting payment',
-                data: {},
-            });
-        }
-
         return res.json({
             success: true,
             message: 'Payment confirmed',
-            data: { rental: serializeRental(paid, 'landlord') },
+            data: { rental: serializeRental(paid, 'landlord', req.participant.id) },
         });
     } catch (error) {
         return res.status(500).json({
@@ -438,7 +536,12 @@ async function handleWebhook(req, res) {
         const entity = req.body?.payload?.payment?.entity;
 
         if (req.body?.event === 'payment.captured' && entity?.order_id) {
-            await markPaid({ 'payment.orderId': entity.order_id }, { 'payment.paymentId': entity.id });
+            const rental = await Rental.findOne({ 'payments.orderId': entity.order_id }).select('payments');
+            const entry = rental?.payments.find((payment) => payment.orderId === entity.order_id);
+
+            if (entry) {
+                await settlePayment({ _id: rental._id }, entry.payer, { 'payments.$[entry].paymentId': entity.id });
+            }
         }
 
         return res.json({ success: true, message: 'Webhook processed', data: {} });
@@ -471,13 +574,21 @@ function row(doc, label, value) {
     doc.moveDown(0.3);
 }
 
-function drawAgreement(doc, rental, signatureDataUrl) {
-    const { listing, user, landlord, terms, preferences, agreement } = rental;
+// Passing a tenantId renders that tenant's own copy; without one it renders the joint agreement.
+function drawAgreement(doc, rental, signatureDataUrl, tenantId) {
+    const { listing, landlord, terms, preferences, agreement } = rental;
+    const tenants = [rental.user, rental.buddy].filter(Boolean);
+    const shown = tenantId ? tenants.filter((tenant) => String(tenant._id) === String(tenantId)) : tenants;
+    const isShared = tenants.length > 1;
     const endDate = new Date(preferences.moveInDate);
 
     endDate.setMonth(endDate.getMonth() + preferences.durationMonths);
 
-    heading(doc, 'Rental Agreement', `Agreement ${agreement.number} · generated ${formatDate(agreement.signedAt)}`);
+    heading(
+        doc,
+        isShared && tenantId ? 'Rental Agreement (tenant copy)' : 'Rental Agreement',
+        `Agreement ${agreement.number} · generated ${formatDate(agreement.signedAt)}`
+    );
 
     doc.font('Helvetica-Bold').fontSize(11).text('Landlord');
     row(doc, 'Name', landlord.companyName || landlord.name);
@@ -485,9 +596,14 @@ function drawAgreement(doc, rental, signatureDataUrl) {
     row(doc, 'Address', `${landlord.address}, ${landlord.city}`);
     doc.moveDown(0.6);
 
-    doc.font('Helvetica-Bold').fontSize(11).text('Tenant');
-    row(doc, 'Name', user.name);
-    row(doc, 'Contact', `${user.email} · ${user.phone}`);
+    doc.font('Helvetica-Bold').fontSize(11).text(shown.length > 1 ? 'Tenants (BuddyUp)' : 'Tenant');
+    shown.forEach((tenant) => {
+        const share = paymentFor(rental, tenant._id);
+
+        row(doc, 'Name', tenant.name);
+        row(doc, 'Contact', `${tenant.email} · ${tenant.phone}`);
+        if (isShared && share) row(doc, 'Share of charges', `${share.share}% · ${formatMoney(share.amount)}`);
+    });
     row(doc, 'Occupants', String(preferences.occupants));
     doc.moveDown(0.6);
 
@@ -503,12 +619,15 @@ function drawAgreement(doc, rental, signatureDataUrl) {
     row(doc, 'Monthly rent', formatMoney(terms.monthlyRent));
     row(doc, 'Security deposit', formatMoney(terms.securityDeposit));
     row(doc, 'Brokerage fee', formatMoney(terms.brokerageFee));
-    row(doc, 'Amount settled', `${formatMoney(terms.totalDue)} (${rental.payment.mode === 'online' ? 'paid via LivSync' : 'paid in person'})`);
+    row(doc, 'Amount settled', formatMoney(terms.totalDue));
     doc.moveDown(0.8);
 
     doc.font('Helvetica').fontSize(9).fillColor('#444').text(
         'The landlord agrees to let the property described above to the tenant for the term stated, on the charges stated. '
-        + 'The tenant accepted these terms electronically on LivSync by settling the amount due. '
+        + (isShared
+            ? 'The tenants named on this agreement hold it jointly, each having settled the share of the charges recorded against their name, and are jointly responsible for the property and the rent that falls due. '
+            : '')
+        + 'The tenants accepted these terms electronically on LivSync by settling the amount due. '
         + 'This document is a simplified record of that agreement and does not replace statutory obligations of either party.',
         { align: 'justify' }
     );
@@ -520,15 +639,18 @@ function drawAgreement(doc, rental, signatureDataUrl) {
         doc.moveDown(4.5);
     }
     doc.font('Helvetica').fontSize(9).fillColor('#666').text(`${landlord.companyName || landlord.name} · e-signed on LivSync`);
-    doc.text(`Tenant acceptance: ${user.name} · ${formatDate(rental.payment.paidAt)}`);
+    shown.forEach((tenant) => {
+        doc.text(`Tenant acceptance: ${tenant.name} · ${formatDate(paymentFor(rental, tenant._id)?.paidAt)}`);
+    });
 }
 
-function drawReceipt(doc, rental) {
-    const { user, listing, terms, payment } = rental;
+function drawReceipt(doc, rental, payment) {
+    const { listing, terms } = rental;
+    const payer = [rental.user, rental.buddy].find((tenant) => tenant && String(tenant._id) === String(payment.payer));
 
     heading(doc, 'Payment Receipt', `Receipt ${payment.receiptNo} · ${formatDate(payment.paidAt)}`);
 
-    row(doc, 'Received from', `${user.name} (${user.email})`);
+    row(doc, 'Received from', `${payer.name} (${payer.email})`);
     row(doc, 'Property', `${listing.title}, ${listing.location.city}`);
     row(doc, 'Payment id', payment.paymentId || '—');
     row(doc, 'Order id', payment.orderId || '—');
@@ -538,6 +660,8 @@ function drawReceipt(doc, rental) {
     row(doc, 'First month rent', formatMoney(terms.monthlyRent));
     row(doc, 'Security deposit', formatMoney(terms.securityDeposit));
     row(doc, 'Brokerage fee', formatMoney(terms.brokerageFee));
+    row(doc, 'Total for the property', formatMoney(terms.totalDue));
+    if (payment.share < 100) row(doc, 'Share settled by this tenant', `${payment.share}%`);
     doc.moveDown(0.3);
     doc.font('Helvetica-Bold').fontSize(12).text(`Total paid  ${formatMoney(payment.amount)}`);
     doc.moveDown(1);
@@ -551,15 +675,17 @@ async function getAgreement(req, res) {
         if (!rental || rental.status !== 'paid') {
             return res.status(404).json({
                 success: false,
-                message: 'Agreement is available once the payment is settled',
+                message: 'The agreement is issued once every tenant has settled their share',
                 data: {},
             });
         }
 
         const landlord = await Landlord.findById(rental.landlord._id).select('+signature.dataUrl');
+        // A tenant can pull their own copy; the landlord only ever gets the joint one.
+        const tenantId = req.query.scope === 'individual' && req.participant.role === 'user' ? req.participant.id : null;
 
         return streamPdf(res, `livsync-agreement-${rental.agreement.number}.pdf`, (doc) => {
-            drawAgreement(doc, rental, landlord?.signature?.dataUrl);
+            drawAgreement(doc, rental, landlord?.signature?.dataUrl, tenantId);
         });
     } catch (error) {
         return res.status(500).json({
@@ -573,8 +699,10 @@ async function getAgreement(req, res) {
 async function getReceipt(req, res) {
     try {
         const rental = await findRentalFor(req.params.rentalId, req.participant);
+        const payerId = req.participant.role === 'landlord' ? req.query.payerId : req.participant.id;
+        const payment = rental && payerId && paymentFor(rental, payerId);
 
-        if (!rental || rental.status !== 'paid' || rental.payment.mode !== 'online') {
+        if (!payment?.paidAt || payment.mode !== 'online') {
             return res.status(404).json({
                 success: false,
                 message: 'A receipt is only issued for payments made through LivSync',
@@ -582,7 +710,7 @@ async function getReceipt(req, res) {
             });
         }
 
-        return streamPdf(res, `livsync-receipt-${rental.payment.receiptNo}.pdf`, (doc) => drawReceipt(doc, rental));
+        return streamPdf(res, `livsync-receipt-${payment.receiptNo}.pdf`, (doc) => drawReceipt(doc, rental, payment));
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -604,6 +732,7 @@ module.exports = {
     getAgreement,
     getReceipt,
     buildTerms,
+    buildPayments,
     isValidPaymentSignature,
     drawAgreement,
     drawReceipt,

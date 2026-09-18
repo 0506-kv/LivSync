@@ -1,14 +1,13 @@
 import axios from 'axios'
 import { useEffect, useRef, useState } from 'react'
 
-const BASE_URL = import.meta.env.VITE_BASE_URL
-
 function formatTime(value) {
   return value ? new Date(value).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : ''
 }
 
-// Mounted with key={conversationId}, so switching threads remounts with clean state.
-function MessageThread({ conversationId, title, subtitle, refreshToken, onSent, onError }) {
+// Mounted with key={threadUrl}, so switching threads remounts with clean state. The url is
+// passed in because the same thread works for a landlord conversation and a BuddyUp match.
+function MessageThread({ threadUrl, title, subtitle, refreshToken, onSent, onError }) {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [draft, setDraft] = useState('')
@@ -23,7 +22,7 @@ function MessageThread({ conversationId, title, subtitle, refreshToken, onSent, 
       try {
         // With a cursor the server only returns messages newer than the last one shown.
         const cursor = cursorRef.current
-        const response = await axios.get(`${BASE_URL}/messages/conversations/${conversationId}/messages`, {
+        const response = await axios.get(`${threadUrl}/messages`, {
           params: cursor ? { after: cursor } : {},
           withCredentials: true,
         })
@@ -53,7 +52,7 @@ function MessageThread({ conversationId, title, subtitle, refreshToken, onSent, 
     return () => {
       isCurrent = false
     }
-  }, [conversationId, refreshToken, onError])
+  }, [threadUrl, refreshToken, onError])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'nearest' })
@@ -69,11 +68,7 @@ function MessageThread({ conversationId, title, subtitle, refreshToken, onSent, 
     setIsSending(true)
 
     try {
-      const response = await axios.post(
-        `${BASE_URL}/messages/conversations/${conversationId}/messages`,
-        { text },
-        { withCredentials: true },
-      )
+      const response = await axios.post(`${threadUrl}/messages`, { text }, { withCredentials: true })
 
       if (!response.data?.success) throw new Error(response.data?.message || 'Unable to send message')
 

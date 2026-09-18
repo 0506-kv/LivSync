@@ -1,6 +1,33 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const preferenceSchema = new mongoose.Schema(
+    {
+        // Opt-in: only these users are dealt into anyone's BuddyUp deck.
+        lookingForBuddy: { type: Boolean, default: false },
+        budget: {
+            min: { type: Number, default: 0, min: 0 },
+            max: { type: Number, default: 0, min: 0 },
+        },
+        city: { type: String, trim: true, maxlength: 80, default: '' },
+        moveInDate: { type: Date },
+        sleepSchedule: { type: String, enum: ['early-bird', 'night-owl', 'flexible'], default: 'flexible' },
+        workSchedule: { type: String, enum: ['day-shift', 'night-shift', 'remote', 'student', 'flexible'], default: 'flexible' },
+        cleanliness: { type: Number, min: 1, max: 5, default: 3 },
+        noiseTolerance: { type: Number, min: 1, max: 5, default: 3 },
+        foodHabits: { type: String, enum: ['vegetarian', 'vegan', 'eggetarian', 'non-vegetarian', 'no-preference'], default: 'no-preference' },
+        smoking: { type: String, enum: ['non-smoker', 'occasional', 'smoker'], default: 'non-smoker' },
+        drinking: { type: String, enum: ['never', 'socially', 'regularly'], default: 'never' },
+        pets: { type: String, enum: ['no-pets', 'has-pets', 'fine-with-pets'], default: 'no-pets' },
+        guests: { type: String, enum: ['rarely', 'sometimes', 'often'], default: 'sometimes' },
+        roommateGender: { type: String, enum: ['any', 'male', 'female', 'non-binary'], default: 'any' },
+        occupation: { type: String, trim: true, maxlength: 80, default: '' },
+        interests: { type: [String], default: [] },
+        bio: { type: String, trim: true, maxlength: 500, default: '' },
+    },
+    { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -45,6 +72,11 @@ const userSchema = new mongoose.Schema(
             enum: ['tenant', 'landlord'],
             default: 'tenant',
         },
+        // Lifestyle profile used for BuddyUp matching and shown to a landlord on a request.
+        preferences: {
+            type: preferenceSchema,
+            default: () => ({}),
+        },
     },
     { timestamps: true }
 );
@@ -58,6 +90,8 @@ userSchema.pre('save', async function hashPassword() {
 userSchema.methods.comparePassword = async function comparePassword(password) {
     return bcrypt.compare(password, this.password);
 };
+
+userSchema.index({ 'preferences.lookingForBuddy': 1, role: 1 });
 
 const User = mongoose.model('User', userSchema);
 

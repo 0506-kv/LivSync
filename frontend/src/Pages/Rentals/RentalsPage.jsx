@@ -23,6 +23,39 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—'
 }
 
+const labelOf = (value) => String(value || '').replaceAll('-', ' ')
+
+// The lifestyle answers a landlord is deciding on, flattened into chips.
+function lifestyleChips(lifestyle) {
+  if (!lifestyle) return []
+
+  return [
+    lifestyle.occupation,
+    lifestyle.city && `City: ${lifestyle.city}`,
+    (lifestyle.budget?.min || lifestyle.budget?.max) && `Budget ${formatAmount(lifestyle.budget.min)}–${formatAmount(lifestyle.budget.max)}`,
+    `Sleep: ${labelOf(lifestyle.sleepSchedule)}`,
+    `Schedule: ${labelOf(lifestyle.workSchedule)}`,
+    `Cleanliness ${lifestyle.cleanliness}/5`,
+    `Noise ${lifestyle.noiseTolerance}/5`,
+    `Food: ${labelOf(lifestyle.foodHabits)}`,
+    labelOf(lifestyle.smoking),
+    `Drinks ${labelOf(lifestyle.drinking)}`,
+    labelOf(lifestyle.pets),
+    `Guests ${labelOf(lifestyle.guests)}`,
+    ...(lifestyle.interests || []),
+  ].filter(Boolean)
+}
+
+// Once the landlord accepts, the frozen shares are the truth; before that it is what was asked for.
+function splitLabel(rental) {
+  const shares = rental.tenants.map((tenant) => tenant.payment?.share).filter(Boolean)
+
+  if (shares.length === 2) return `${shares[0]} / ${shares[1]}`
+  if (rental.split?.mode === 'amount') return `${formatAmount(rental.split.value)} + the rest`
+
+  return `${rental.split?.value ?? 50} / ${100 - (rental.split?.value ?? 50)}`
+}
+
 function loadCheckout() {
   if (window.Razorpay) return Promise.resolve(true)
 
@@ -34,6 +67,33 @@ function loadCheckout() {
     script.onerror = () => resolve(false)
     document.body.appendChild(script)
   })
+}
+
+function TenantPanel({ tenant, isLandlord, showContact }) {
+  const chips = lifestyleChips(tenant.lifestyle)
+
+  return (
+    <div className="rounded-lg border border-slate-200 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold">
+          {tenant.name}
+          {tenant.mine && <span className="ml-2 text-xs font-normal text-slate-500">(you)</span>}
+        </p>
+        {tenant.payment && (
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tenant.payment.paid ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+            {tenant.payment.share}% · {formatAmount(tenant.payment.amount)} · {tenant.payment.paid ? `paid ${labelOf(tenant.payment.mode)}` : 'unpaid'}
+          </span>
+        )}
+      </div>
+      {showContact && <p className="mt-1 text-sm text-slate-600 break-words">{tenant.email} · {tenant.phone} · {labelOf(tenant.gender)}</p>}
+      {tenant.lifestyle?.bio && <p className="mt-2 text-sm text-slate-700">{tenant.lifestyle.bio}</p>}
+      {isLandlord && chips.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {chips.map((chip) => <li key={chip} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs capitalize text-slate-700">{chip}</li>)}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 function RentalsPage() {
@@ -110,9 +170,9 @@ function RentalsPage() {
     'Unable to update the request',
   )
 
-  const confirmInPerson = (rental) => runAction(
+  const confirmInPerson = (rental, payerId) => runAction(
     rental.id,
-    () => axios.post(`${BASE_URL}/rentals/${rental.id}/payment/confirm`, {}, { withCredentials: true }),
+    () => axios.post(`${BASE_URL}/rentals/${rental.id}/payment/confirm`, { payerId }, { withCredentials: true }),
     'Unable to confirm the payment',
   )
 
@@ -191,7 +251,9 @@ function RentalsPage() {
         <div className="mt-8 space-y-5">
           {rentals.map((rental) => {
             const isBusy = busyId === rental.id
-            const awaitingInPerson = rental.status === 'accepted' && rental.payment.mode === 'in-person'
+            const myPayment = rental.myPayment
+            const awaitingConfirmation = rental.tenants.filter((tenant) => tenant.payment?.mode === 'in-person' && !tenant.payment.paid)
+            const unpaidOthers = rental.tenants.filter((tenant) => !tenant.mine && tenant.payment && !tenant.payment.paid)
 
             return (
               <article key={rental.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -203,12 +265,17 @@ function RentalsPage() {
                       ) : 'Listing removed'}
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      {isLandlord ? `From ${rental.tenant?.name || 'Tenant'}` : `Listed by ${rental.landlord?.name || 'Landlord'}`}
+                      {isLandlord
+                        ? `From ${rental.tenants.map((tenant) => tenant.name).join(' and ') || 'Tenant'}`
+                        : `Listed by ${rental.landlord?.name || 'Landlord'}`}
                       {' · '}
                       sent {formatDate(rental.createdAt)}
                     </p>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${STATUS_STYLES[rental.status]}`}>{rental.status}</span>
+                  <div className="flex items-center gap-2">
+                    {rental.isBuddyRequest && <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">BuddyUp · {splitLabel(rental)}</span>}
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${STATUS_STYLES[rental.status]}`}>{rental.status}</span>
+                  </div>
                 </div>
 
                 <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
@@ -220,20 +287,18 @@ function RentalsPage() {
                 {rental.preferences.note && <p className="mt-3 text-sm text-slate-600"><span className="text-slate-500">Preferences: </span>{rental.preferences.note}</p>}
                 <p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{rental.message}</p>
 
-                {isLandlord && rental.tenant && (
-                  <dl className="mt-4 grid gap-4 border-t border-slate-200 pt-4 text-sm sm:grid-cols-3">
-                    <div><dt className="text-slate-500">Tenant email</dt><dd className="mt-1 font-medium break-words">{rental.tenant.email}</dd></div>
-                    <div><dt className="text-slate-500">Phone</dt><dd className="mt-1 font-medium">{rental.tenant.phone}</dd></div>
-                    <div><dt className="text-slate-500">Gender</dt><dd className="mt-1 font-medium capitalize">{rental.tenant.gender?.replaceAll('-', ' ')}</dd></div>
-                  </dl>
-                )}
+                <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+                  {rental.tenants.map((tenant) => (
+                    <TenantPanel key={tenant.id} tenant={tenant} isLandlord={isLandlord} showContact={isLandlord} />
+                  ))}
+                </div>
 
                 {rental.terms && (
                   <dl className="mt-4 grid gap-4 border-t border-slate-200 pt-4 text-sm sm:grid-cols-4">
                     <div><dt className="text-slate-500">Monthly rent</dt><dd className="mt-1 font-medium">{formatAmount(rental.terms.monthlyRent)}</dd></div>
                     <div><dt className="text-slate-500">Deposit</dt><dd className="mt-1 font-medium">{formatAmount(rental.terms.securityDeposit)}</dd></div>
                     <div><dt className="text-slate-500">Brokerage</dt><dd className="mt-1 font-medium">{formatAmount(rental.terms.brokerageFee)}</dd></div>
-                    <div><dt className="text-slate-500">{rental.status === 'paid' ? 'Paid' : 'Due now'}</dt><dd className="mt-1 font-semibold">{formatAmount(rental.terms.totalDue)}</dd></div>
+                    <div><dt className="text-slate-500">{rental.status === 'paid' ? 'Settled' : 'Total due'}</dt><dd className="mt-1 font-semibold">{formatAmount(rental.terms.totalDue)}</dd></div>
                   </dl>
                 )}
 
@@ -242,51 +307,69 @@ function RentalsPage() {
                     <>
                       <button type="button" onClick={() => decide(rental, 'accept')} disabled={isBusy} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">Accept request</button>
                       <button type="button" onClick={() => decide(rental, 'reject')} disabled={isBusy} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">Reject</button>
-                      <span className="text-xs text-slate-500">Accepting freezes today&apos;s rent, deposit and brokerage as the agreed terms.</span>
+                      <span className="text-xs text-slate-500">
+                        Accepting freezes today&apos;s rent, deposit and brokerage as the agreed terms
+                        {rental.isBuddyRequest ? ' and splits them into each tenant’s share.' : '.'}
+                      </span>
                     </>
                   )}
 
-                  {isLandlord && awaitingInPerson && (
-                    <>
-                      <button type="button" onClick={() => confirmInPerson(rental)} disabled={isBusy} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">Confirm payment received</button>
-                      <span className="text-xs text-slate-500">The tenant will pay you in person. The agreement is issued once you confirm.</span>
-                    </>
-                  )}
+                  {isLandlord && awaitingConfirmation.map((tenant) => (
+                    <button key={tenant.id} type="button" onClick={() => confirmInPerson(rental, tenant.id)} disabled={isBusy} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
+                      Confirm {formatAmount(tenant.payment.amount)} received from {tenant.name}
+                    </button>
+                  ))}
 
-                  {isLandlord && rental.status === 'accepted' && !rental.payment.mode && (
-                    <span className="text-sm text-slate-600">Accepted. Waiting for the tenant to pay.</span>
+                  {isLandlord && rental.status === 'accepted' && !awaitingConfirmation.length && (
+                    <span className="text-sm text-slate-600">Accepted. Waiting for {unpaidOthers.length > 1 ? 'the tenants' : 'the tenant'} to pay.</span>
                   )}
 
                   {!isLandlord && rental.status === 'pending' && <span className="text-sm text-slate-600">Waiting for the landlord to respond.</span>}
                   {!isLandlord && rental.status === 'rejected' && <span className="text-sm text-slate-600">The landlord declined this request. You can send a new one from the listing.</span>}
 
-                  {!isLandlord && rental.status === 'accepted' && (
+                  {!isLandlord && rental.status === 'accepted' && myPayment && !myPayment.paid && (
                     <>
                       <button type="button" onClick={() => payOnline(rental)} disabled={isBusy} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">
-                        {isBusy ? 'Opening payment…' : `Pay ${formatAmount(rental.terms?.totalDue)} online`}
+                        {isBusy ? 'Opening payment…' : `Pay your share of ${formatAmount(myPayment.amount)} online`}
                       </button>
-                      {!awaitingInPerson && (
+                      {myPayment.mode !== 'in-person' && (
                         <button type="button" onClick={() => chooseInPerson(rental)} disabled={isBusy} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">I will pay in person</button>
                       )}
                       <span className="text-xs text-slate-500">
-                        {awaitingInPerson
+                        {myPayment.mode === 'in-person'
                           ? 'Marked as pay in person — the landlord confirms it, and no receipt is issued. Paying online instead still gets you one.'
                           : 'Paying online issues a receipt. In-person payments get the agreement only.'}
                       </span>
                     </>
                   )}
 
-                  {rental.status === 'paid' && (
+                  {!isLandlord && rental.status === 'accepted' && myPayment?.paid && (
+                    <span className="text-sm text-slate-600">
+                      Your share is settled. The agreement is issued once {unpaidOthers.map((tenant) => tenant.name).join(' and ')} pays too.
+                    </span>
+                  )}
+
+                  {rental.documents.agreement && (
                     <>
-                      <a href={`${BASE_URL}/rentals/${rental.id}/agreement`} target="_blank" rel="noreferrer" className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Rental agreement (PDF)</a>
-                      {rental.documents.receipt ? (
-                        <a href={`${BASE_URL}/rentals/${rental.id}/receipt`} target="_blank" rel="noreferrer" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Payment receipt (PDF)</a>
-                      ) : (
-                        <span className="text-xs text-slate-500">Paid in person — no receipt is issued by LivSync.</span>
+                      <a href={`${BASE_URL}/rentals/${rental.id}/agreement`} target="_blank" rel="noreferrer" className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                        {rental.isBuddyRequest ? 'Joint agreement (PDF)' : 'Rental agreement (PDF)'}
+                      </a>
+                      {!isLandlord && rental.isBuddyRequest && (
+                        <a href={`${BASE_URL}/rentals/${rental.id}/agreement?scope=individual`} target="_blank" rel="noreferrer" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Your copy (PDF)</a>
                       )}
                       <span className="text-xs text-slate-500">Agreement {rental.agreement?.number}</span>
                     </>
                   )}
+
+                  {!isLandlord && rental.documents.receipt && (
+                    <a href={`${BASE_URL}/rentals/${rental.id}/receipt`} target="_blank" rel="noreferrer" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Payment receipt (PDF)</a>
+                  )}
+
+                  {isLandlord && rental.tenants.filter((tenant) => tenant.payment?.paid && tenant.payment.mode === 'online').map((tenant) => (
+                    <a key={tenant.id} href={`${BASE_URL}/rentals/${rental.id}/receipt?payerId=${tenant.id}`} target="_blank" rel="noreferrer" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                      Receipt · {tenant.name}
+                    </a>
+                  ))}
                 </div>
               </article>
             )

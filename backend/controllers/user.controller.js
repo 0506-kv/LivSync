@@ -30,6 +30,7 @@ function serializeUser(user) {
         dob: user.dob,
         gender: user.gender,
         role: user.role,
+        preferences: user.preferences,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
     };
@@ -145,4 +146,34 @@ async function getUserProfile(req, res) {
     }
 }
 
-module.exports = { registerUser, loginUser, logoutUser, getUserProfile };
+// Preferences are merged, so a form that posts one section never blanks the others.
+async function updateUserPreferences(req, res) {
+    try {
+        const user = await User.findById(req.userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+                data: {},
+            });
+        }
+
+        user.preferences = { ...user.preferences?.toObject(), ...req.body.preferences };
+        await user.save();
+
+        return res.json({
+            success: true,
+            message: 'Preferences saved successfully',
+            data: { user: serializeUser(user) },
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to save your preferences',
+            data: {},
+        });
+    }
+}
+
+module.exports = { registerUser, loginUser, logoutUser, getUserProfile, updateUserPreferences };

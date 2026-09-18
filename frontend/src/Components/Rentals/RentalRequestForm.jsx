@@ -1,22 +1,55 @@
 import axios from 'axios'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
 
-const today = () => new Date().toISOString().slice(0, 10)
+// How the requester states their share; the buddy covers whatever is left of the total.
+const SPLIT_MODES = [['even', 'Split evenly (50 / 50)'], ['percent', 'By percentage'], ['amount', 'By amount']]
 
-function RentalRequestForm({ listingId }) {
+const today = () => new Date().toISOString().slice(0, 10)
+const formatAmount = (value) => `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(value) || 0)}`
+
+// Mirrors the server: the asked-for share is clamped so both tenants still owe something.
+function previewShares(totalDue, mode, value) {
+  if (!totalDue || totalDue < 2) return null
+
+  const asked = mode === 'amount' ? Number(value) : (totalDue * Number(value)) / 100
+  const mine = Math.min(Math.max(Math.round(asked) || 0, 1), totalDue - 1)
+
+  return { mine, theirs: totalDue - mine }
+}
+
+function RentalRequestForm({ listingId, totalDue = 0 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [form, setForm] = useState({ moveInDate: today(), durationMonths: 12, occupants: 1, note: '', message: '' })
+  const [form, setForm] = useState({ moveInDate: today(), durationMonths: 12, occupants: 1, note: '', message: '', buddyId: '', splitMode: 'even', splitValue: 50 })
+  const [buddies, setBuddies] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [isSent, setIsSent] = useState(false)
 
+  // Only matched buddies can be named on a request, so the list is the server's answer.
+  useEffect(() => {
+    if (!isOpen) return
+
+    axios.get(`${BASE_URL}/buddies`, { withCredentials: true })
+      .then((response) => setBuddies(response.data?.data?.buddies || []))
+      .catch(() => setBuddies([]))
+  }, [isOpen])
+
   const handleChange = (event) => {
     const { name, value } = event.target
-    setForm((currentForm) => ({ ...currentForm, [name]: value }))
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+      // Changing how the split is stated resets the figure to an even share of the costs.
+      ...(name === 'splitMode' ? { splitValue: value === 'amount' ? Math.round(totalDue / 2) || 1 : 50 } : {}),
+    }))
   }
+
+  const shares = form.buddyId ? previewShares(totalDue, form.splitMode === 'even' ? 'percent' : form.splitMode, form.splitMode === 'even' ? 50 : form.splitValue) : null
+  const buddyName = buddies.find((buddy) => buddy.peer.id === form.buddyId)?.peer?.name || 'your buddy'
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -29,6 +62,10 @@ function RentalRequestForm({ listingId }) {
         {
           listingId,
           message: form.message,
+          buddyId: form.buddyId || undefined,
+          split: form.splitMode === 'even'
+            ? { mode: 'percent', value: 50 }
+            : { mode: form.splitMode, value: Number(form.splitValue) },
           preferences: {
             moveInDate: form.moveInDate,
             durationMonths: Number(form.durationMonths),
@@ -53,7 +90,7 @@ function RentalRequestForm({ listingId }) {
     return (
       <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
         <p className="font-semibold">Request sent</p>
-        <p className="mt-1">The landlord will review your profile and reply. Payment opens once they accept.</p>
+        <p className="mt-1">The landlord will review the profile and preferences of everyone on the request and reply. Payment opens once they accept.</p>
         <Link to="/rentals" className="mt-2 inline-block font-semibold underline">Track your requests</Link>
       </div>
     )
@@ -89,6 +126,51 @@ function RentalRequestForm({ listingId }) {
           <input id="occupants" name="occupants" type="number" min="1" max="20" value={form.occupants} onChange={handleChange} required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-700" />
         </label>
       </div>
+      {buddies.length > 0 && (
+        <>
+          <label className="block text-xs font-medium text-slate-700" htmlFor="buddyId">
+            Apply with a buddy
+            <select id="buddyId" name="buddyId" value={form.buddyId} onChange={handleChange} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-700">
+              <option value="">On my own</option>
+              {buddies.map((buddy) => <option key={buddy.id} value={buddy.peer.id}>{buddy.peer.name}</option>)}
+            </select>
+          </label>
+          {form.buddyId && (
+            <div className="space-y-3 rounded-lg bg-slate-50 p-3">
+              <label className="block text-xs font-medium text-slate-700" htmlFor="splitMode">
+                Cost split
+                <select id="splitMode" name="splitMode" value={form.splitMode} onChange={handleChange} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-700">
+                  {SPLIT_MODES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              {form.splitMode !== 'even' && (
+                <label className="block text-xs font-medium text-slate-700" htmlFor="splitValue">
+                  {form.splitMode === 'percent' ? 'Your share (%)' : 'Your share (₹)'}
+                  <input
+                    id="splitValue"
+                    name="splitValue"
+                    type="number"
+                    min={form.splitMode === 'percent' ? 10 : 1}
+                    max={form.splitMode === 'percent' ? 90 : undefined}
+                    step="1"
+                    value={form.splitValue}
+                    onChange={handleChange}
+                    required
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-700"
+                  />
+                </label>
+              )}
+              {shares && (
+                <p className="text-xs text-slate-600">
+                  You pay <span className="font-semibold">{formatAmount(shares.mine)}</span>, {buddyName} pays <span className="font-semibold">{formatAmount(shares.theirs)}</span>
+                  <span className="block text-slate-500">Based on today&apos;s listed costs. The landlord freezes the exact total when they accept, and your buddy covers the rest of it.</span>
+                </p>
+              )}
+              <p className="text-xs text-slate-500">Agree this in your BuddyUp chat first. Each of you pays your own share, and the agreement is issued once both have paid.</p>
+            </div>
+          )}
+        </>
+      )}
       <label className="block text-xs font-medium text-slate-700" htmlFor="note">
         Living preferences (optional)
         <input id="note" name="note" type="text" maxLength={500} value={form.note} onChange={handleChange} placeholder="Non-smoker, works from home, no pets" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-700" />

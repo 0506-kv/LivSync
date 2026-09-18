@@ -7,6 +7,24 @@ const validateRentalRequest = [
     body('preferences.durationMonths').isInt({ min: 1, max: 120 }).withMessage('Duration must be 1 to 120 months').toInt(),
     body('preferences.occupants').isInt({ min: 1, max: 20 }).withMessage('Occupants must be 1 to 20').toInt(),
     body('preferences.note').optional().trim().isLength({ max: 500 }).withMessage('Note cannot exceed 500 characters'),
+    body('buddyId').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid buddy id'),
+    body('split').optional().custom((split) => {
+        const mode = split?.mode || 'percent';
+        const value = Number(split?.value);
+
+        if (!['percent', 'amount'].includes(mode)) throw new Error('Split the cost by percentage or by amount');
+        if (!Number.isInteger(value) || value < 1) throw new Error('Enter the share you are paying');
+        if (mode === 'percent' && (value < 10 || value > 90)) throw new Error('Your share must be between 10% and 90%');
+        if (mode === 'amount' && value > 10000000) throw new Error('Enter a valid share');
+
+        return true;
+    }),
+    handleValidationErrors,
+];
+
+const validateOfflineConfirmation = [
+    param('rentalId').isMongoId().withMessage('Invalid rental id'),
+    body('payerId').isMongoId().withMessage('Invalid tenant id'),
     handleValidationErrors,
 ];
 
@@ -45,6 +63,7 @@ function handleValidationErrors(req, res, next) {
 
 module.exports = {
     validateRentalRequest,
+    validateOfflineConfirmation,
     validateRentalDecision,
     validateRentalId,
     validatePaymentVerification,

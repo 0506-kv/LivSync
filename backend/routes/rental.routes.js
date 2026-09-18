@@ -17,6 +17,7 @@ const {
     validateRentalDecision,
     validateRentalId,
     validatePaymentVerification,
+    validateOfflineConfirmation,
 } = require('../middlewares/rental.middleware');
 
 const requireTenant = requireRole('user', 'Only tenants can perform this action');
@@ -35,7 +36,7 @@ router.patch('/:rentalId/decision', requireLandlord, validateRentalDecision, dec
 router.post('/:rentalId/payment/order', requireTenant, validateRentalId, createPaymentOrder);
 router.post('/:rentalId/payment/verify', requireTenant, validatePaymentVerification, verifyPayment);
 router.post('/:rentalId/payment/in-person', requireTenant, validateRentalId, chooseOfflinePayment);
-router.post('/:rentalId/payment/confirm', requireLandlord, validateRentalId, confirmOfflinePayment);
+router.post('/:rentalId/payment/confirm', requireLandlord, validateOfflineConfirmation, confirmOfflinePayment);
 router.get('/:rentalId/agreement', validateRentalId, getAgreement);
 router.get('/:rentalId/receipt', validateRentalId, getReceipt);
 

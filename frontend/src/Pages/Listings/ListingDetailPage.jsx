@@ -156,7 +156,7 @@ function ListingDetailPage() {
                     {isContacting ? 'Opening chat…' : 'Message landlord'}
                   </button>
                   {contactError && <p className="mt-2 text-red-600">{contactError}</p>}
-                  <RentalRequestForm listingId={listingId} />
+                  <RentalRequestForm listingId={listingId} totalDue={monthlyRent + (listing.securityDeposit || 0) + (listing.brokerageFee || 0)} />
                   {listing.floorPlanUrl && <a href={listing.floorPlanUrl} target="_blank" rel="noreferrer" className="mt-4 block font-semibold text-slate-900 hover:underline">View floor plan</a>}
                   {listing.virtualTourUrl && <a href={listing.virtualTourUrl} target="_blank" rel="noreferrer" className="mt-3 block font-semibold text-slate-900 hover:underline">Open virtual tour</a>}
                 </div>

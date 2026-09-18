@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './Context/AuthContext'
+import BuddyPage from './Pages/Buddy/BuddyPage'
 import LandingPage from './Pages/Common/LandingPage'
 import LoginPage from './Pages/Common/LoginPage'
 import RegisterPage from './Pages/Common/RegisterPage'
@@ -11,6 +12,7 @@ import MessagesPage from './Pages/Messages/MessagesPage'
 import RentalsPage from './Pages/Rentals/RentalsPage'
 import UserListingsPage from './Pages/Listings/UserListingsPage'
 import UserHomePage from './Pages/User/UserHomePage'
+import UserProfilePage from './Pages/User/UserProfilePage'
 
 function RoleRoute({ role, children }) {
   const { role: currentRole } = useAuth()
@@ -53,6 +55,22 @@ function App() {
         element={(
           <RoleRoute role="landlord">
             <LandlordListingsPage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/user/profile"
+        element={(
+          <RoleRoute role="user">
+            <UserProfilePage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/buddies"
+        element={(
+          <RoleRoute role="user">
+            <BuddyPage />
           </RoleRoute>
         )}
       />

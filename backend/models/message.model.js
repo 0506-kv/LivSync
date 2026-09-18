@@ -2,15 +2,17 @@ const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema(
     {
+        // The thread this belongs to: a Conversation (tenant to landlord) or a Buddy pair.
         conversation: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Conversation',
             required: true,
         },
+        // The slot of the thread the sender holds, not a global role: a buddy thread has a
+        // "user" side and a "buddy" side, both of them tenants.
         senderRole: {
             type: String,
             required: true,
-            enum: ['user', 'landlord'],
+            enum: ['user', 'landlord', 'buddy'],
         },
         text: {
             type: String,

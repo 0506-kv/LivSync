@@ -1,11 +1,50 @@
 const mongoose = require('mongoose');
 
+// One share of the total due. A solo request has a single entry; a BuddyUp request has one
+// per tenant, and the agreement is only issued once every entry is settled.
+const paymentSchema = new mongoose.Schema(
+    {
+        payer: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true,
+        },
+        share: { type: Number, min: 1, max: 100, required: true },
+        amount: { type: Number, min: 0, required: true },
+        mode: { type: String, enum: ['online', 'in-person'] },
+        orderId: { type: String },
+        paymentId: { type: String },
+        receiptNo: { type: String },
+        paidAt: { type: Date },
+    },
+    { _id: false }
+);
+
 const rentalSchema = new mongoose.Schema(
     {
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
             required: true,
+        },
+        // The co-tenant on a BuddyUp request. Absent on a solo request.
+        buddy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
+        // How the requesting tenant's share is worked out: a percentage of the total, or a flat
+        // amount they name. Either way the buddy covers whatever is left of the frozen total.
+        split: {
+            mode: {
+                type: String,
+                enum: ['percent', 'amount'],
+                default: 'percent',
+            },
+            value: {
+                type: Number,
+                min: 1,
+                default: 50,
+            },
         },
         landlord: {
             type: mongoose.Schema.Types.ObjectId,
@@ -65,29 +104,9 @@ const rentalSchema = new mongoose.Schema(
             brokerageFee: { type: Number, min: 0 },
             totalDue: { type: Number, min: 0 },
         },
-        payment: {
-            mode: {
-                type: String,
-                enum: ['online', 'in-person'],
-            },
-            amount: {
-                type: Number,
-                min: 0,
-            },
-            orderId: {
-                type: String,
-                index: true,
-                sparse: true,
-            },
-            paymentId: {
-                type: String,
-            },
-            receiptNo: {
-                type: String,
-            },
-            paidAt: {
-                type: Date,
-            },
+        payments: {
+            type: [paymentSchema],
+            default: [],
         },
         agreement: {
             number: {
@@ -105,6 +124,8 @@ const rentalSchema = new mongoose.Schema(
 rentalSchema.index({ user: 1, listing: 1 }, { unique: true });
 rentalSchema.index({ landlord: 1, createdAt: -1 });
 rentalSchema.index({ user: 1, createdAt: -1 });
+rentalSchema.index({ buddy: 1, createdAt: -1 });
+rentalSchema.index({ 'payments.orderId': 1 }, { sparse: true });
 
 const Rental = mongoose.model('Rental', rentalSchema);
 

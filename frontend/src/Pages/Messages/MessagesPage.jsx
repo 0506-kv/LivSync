@@ -142,7 +142,7 @@ function MessagesPage() {
             {activeId ? (
               <MessageThread
                 key={activeId}
-                conversationId={activeId}
+                threadUrl={`${BASE_URL}/messages/conversations/${activeId}`}
                 title={activeConversation?.counterpart?.name || 'Conversation'}
                 subtitle={activeConversation?.listing?.title || ''}
                 refreshToken={refreshToken}
