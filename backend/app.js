@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 const connectToDb = require('./db/db');
 const userRoutes = require('./routes/user.routes');
 const landlordRoutes = require('./routes/landlord.routes');
+const listingRoutes = require('./routes/listing.routes');
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.get('/', (req, res) => {
 
 app.use('/auth', userRoutes);
 app.use('/landlord', landlordRoutes);
+app.use('/listings', listingRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
