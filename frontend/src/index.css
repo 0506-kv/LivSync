@@ -1,1 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --color-paper: #F4F1EA;
+  --color-card: #FDFBF6;
+  --color-ink: #15130F;
+  --color-ink-soft: #3B372F;
+  --color-muted: #5F5A4E;
+  --color-faint: #6E6757;
+  --color-forest: #13322A;
+  --color-forest-deep: #0E2620;
+  --color-forest-mute: #B7C7B8;
+  --color-lime: #CFF04A;
+  --color-clay: #D9482B;
+  --color-sand: #C8B98F;
+
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --animate-marquee: ls-marquee 38s linear infinite;
+  --animate-pulse-ring: ls-pulse 4s ease-in-out infinite;
+}
+
+@keyframes ls-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes ls-pulse {
+  0%, 100% { opacity: .25; transform: scale(1); }
+  50% { opacity: .7; transform: scale(1.35); }
+}
+
+@layer base {
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--color-lime);
+    color: var(--color-ink);
+  }
+}
