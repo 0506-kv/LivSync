@@ -1,16 +1,84 @@
-# React + Vite
+# LivSync Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React frontend for LivSync, built with Vite and Tailwind CSS.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19
+- Vite 8
+- Tailwind CSS 4 through `@tailwindcss/vite`
+- ESLint 10
+- Optional UI/runtime libraries listed in dependencies: `axios`, `framer-motion`, `lucide-react`, `react-icons`, and `react-router-dom`
 
-## React Compiler
+## Installation
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+From the `frontend` folder:
 
-## Expanding the ESLint configuration
+```bash
+npm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Configuration
+
+No frontend environment variables are currently required by the codebase.
+
+The `.gitignore` file already excludes:
+
+- `.env`
+- `node_modules`
+
+If API calls are added later, create a local `.env` file and use Vite-style variables, for example:
+
+```env
+VITE_API_BASE_URL=http://localhost:4000
+```
+
+Only variables prefixed with `VITE_` are exposed to browser code by Vite.
+
+## Available Scripts
+
+```bash
+npm run dev
+```
+
+Starts the Vite development server. By default, Vite serves the app at `http://localhost:5173`.
+
+```bash
+npm run build
+```
+
+Creates a production build in `dist`.
+
+```bash
+npm run preview
+```
+
+Serves the production build locally for preview.
+
+```bash
+npm run lint
+```
+
+Runs ESLint against the frontend source.
+
+## Frontend Routes
+
+The frontend currently does not define React Router routes.
+
+| Route | Source | Description |
+| --- | --- | --- |
+| `/` | `src/main.jsx` renders `src/App.jsx` | Main app entry rendered into `#root` from `index.html` |
+
+`react-router-dom` is installed, but it is not currently used in `src/App.jsx`.
+
+## Current App Entry
+
+- `index.html` provides the root DOM element: `<div id="root"></div>`
+- `src/main.jsx` mounts the React app with `createRoot`
+- `src/App.jsx` currently renders a simple `App` placeholder
+- `src/index.css` imports Tailwind with `@import "tailwindcss";`
+- `vite.config.js` enables the React and Tailwind Vite plugins
+
+## Development Notes
+
+Run the backend separately from the `backend` folder if the frontend needs API data. The backend defaults to `http://localhost:4000`.
