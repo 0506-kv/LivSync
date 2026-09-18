@@ -101,6 +101,8 @@ landlordSchema.pre('save', async function hashPassword() {
     this.password = await bcrypt.hash(this.password, 12);
 });
 
+landlordSchema.index({ emailVerified: 1 });
+
 landlordSchema.methods.comparePassword = async function comparePassword(password) {
     return bcrypt.compare(password, this.password);
 };

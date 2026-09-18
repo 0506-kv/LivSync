@@ -155,6 +155,7 @@ listingSchema.virtual('totalMonthlyRent').get(function getTotalMonthlyRent() {
 });
 
 listingSchema.index({ status: 1, 'location.city': 1, 'rent.coldRent': 1, availableFrom: 1 });
+listingSchema.index({ status: 1, landlord: 1 });
 listingSchema.index({ landlord: 1, createdAt: -1 });
 
 const Listing = mongoose.model('Listing', listingSchema);

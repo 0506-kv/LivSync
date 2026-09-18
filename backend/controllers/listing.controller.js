@@ -98,18 +98,39 @@ async function createListing(req, res) {
 
 async function getListings(req, res) {
     try {
-        const { city, propertyType, roomType, minRent, maxRent, availableFrom, page = 1, limit = 12, sort } = req.query;
+        const {
+            city,
+            propertyType,
+            roomType,
+            minRent,
+            maxRent,
+            minBedrooms,
+            furnished,
+            availableFrom,
+            verifiedLandlord,
+            page = 1,
+            limit = 12,
+            sort,
+        } = req.query;
         const filters = { status: { $in: TENANT_VISIBLE } };
 
         if (city) filters['location.city'] = new RegExp(`^${escapeRegExp(city)}$`, 'i');
         if (propertyType) filters.propertyType = propertyType;
         if (roomType) filters.roomType = roomType;
+        if (minBedrooms !== undefined) filters.bedrooms = { $gte: minBedrooms };
+        if (furnished !== undefined) filters.furnished = furnished;
         if (minRent !== undefined || maxRent !== undefined) {
             filters['rent.coldRent'] = {};
             if (minRent !== undefined) filters['rent.coldRent'].$gte = minRent;
             if (maxRent !== undefined) filters['rent.coldRent'].$lte = maxRent;
         }
         if (availableFrom) filters.availableFrom = { $lte: availableFrom };
+
+        if (verifiedLandlord) {
+            filters.landlord = {
+                $in: await Landlord.distinct('_id', { emailVerified: true }),
+            };
+        }
 
         const [listings, total] = await Promise.all([
             Listing.find(filters)

@@ -80,8 +80,21 @@ const validateListingQuery = [
     query('propertyType').optional().isIn(PROPERTY_TYPES).withMessage('Enter a valid property type'),
     query('roomType').optional().isIn(ROOM_TYPES).withMessage('Enter a valid room type'),
     query('minRent').optional().isFloat({ min: 0 }).withMessage('Minimum rent must be zero or greater').toFloat(),
-    query('maxRent').optional().isFloat({ min: 0 }).withMessage('Maximum rent must be zero or greater').toFloat(),
+    query('maxRent')
+        .optional()
+        .isFloat({ min: 0 }).withMessage('Maximum rent must be zero or greater')
+        .toFloat()
+        .custom((value, { req }) => {
+            if (req.query.minRent !== undefined && value < req.query.minRent) {
+                throw new Error('Maximum rent must be greater than or equal to minimum rent');
+            }
+
+            return true;
+        }),
+    query('minBedrooms').optional().isInt({ min: 0, max: 50 }).withMessage('Minimum bedrooms must be between 0 and 50').toInt(),
+    query('furnished').optional().isBoolean().withMessage('Furnished must be true or false').toBoolean(),
     query('availableFrom').optional().isISO8601().toDate().withMessage('Enter a valid availability date'),
+    query('verifiedLandlord').optional().isBoolean().withMessage('Verified landlord must be true or false').toBoolean(),
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be at least 1').toInt(),
     query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50').toInt(),
     query('sort').optional().isIn(['newest', 'rent_asc', 'rent_desc']).withMessage('Enter a valid sort option'),
