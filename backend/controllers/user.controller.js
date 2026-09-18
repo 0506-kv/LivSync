@@ -72,8 +72,12 @@ async function registerUser(req, res) {
 
 async function loginUser(req, res) {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email }).select('+password');
+        const { identifier, password } = req.body;
+        const loginIdentifier = identifier.trim();
+        const query = loginIdentifier.includes('@')
+            ? { email: loginIdentifier.toLowerCase() }
+            : { phone: loginIdentifier };
+        const user = await User.findOne(query).select('+password');
 
         if (!user || !(await user.comparePassword(password))) {
             return res.status(401).json({

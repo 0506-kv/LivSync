@@ -29,7 +29,20 @@ const validateLandlordRegistration = [
 ];
 
 const validateLandlordLogin = [
-    body('email').trim().isEmail().withMessage('Enter a valid email').normalizeEmail(),
+    body('identifier')
+        .trim()
+        .notEmpty().withMessage('Email or phone number is required')
+        .bail()
+        .custom((value) => {
+            const isEmail = /^\S+@\S+\.\S+$/.test(value);
+            const isPhone = /^\+?[1-9]\d{7,14}$/.test(value);
+
+            if (!isEmail && !isPhone) {
+                throw new Error('Enter a valid email or phone number');
+            }
+
+            return true;
+        }),
     body('password').notEmpty().withMessage('Password is required'),
     handleValidationErrors,
 ];

@@ -98,8 +98,12 @@ async function registerLandlord(req, res) {
 
 async function loginLandlord(req, res) {
     try {
-        const { email, password } = req.body;
-        const landlord = await Landlord.findOne({ email }).select('+password');
+        const { identifier, password } = req.body;
+        const loginIdentifier = identifier.trim();
+        const query = loginIdentifier.includes('@')
+            ? { email: loginIdentifier.toLowerCase() }
+            : { phone: loginIdentifier };
+        const landlord = await Landlord.findOne(query).select('+password');
 
         if (!landlord || !(await landlord.comparePassword(password))) {
             return res.status(401).json({
