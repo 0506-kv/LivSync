@@ -10,6 +10,16 @@ function createToken(landlordId) {
     return jwt.sign({ landlordId }, process.env.JWT_SECRET, { expiresIn: TOKEN_DURATION });
 }
 
+// A JWT can outlive a database reset. Treat a token whose account has disappeared as an
+// invalid session so the client clears its local role state and returns to login.
+function invalidateLandlordSession(res) {
+    return res.clearCookie(COOKIE_NAME, getCookieOptions(false)).status(401).json({
+        success: false,
+        message: 'Your landlord session is no longer valid. Please log in again.',
+        data: {},
+    });
+}
+
 function serializeLandlord(landlord) {
     return {
         id: landlord._id,
@@ -145,13 +155,10 @@ async function getLandlordProfile(req, res) {
         const landlord = await Landlord.findById(req.landlordId);
 
         if (!landlord) {
-            return res.status(404).json({
-                success: false,
-                message: 'Landlord not found',
-                data: {},
-            });
+            return invalidateLandlordSession(res);
         }
 
+        res.set('Cache-Control', 'private, no-store');
         return res.json({
             success: true,
             message: 'Landlord profile retrieved successfully',
@@ -175,11 +182,7 @@ async function saveLandlordSignature(req, res) {
         );
 
         if (!landlord) {
-            return res.status(404).json({
-                success: false,
-                message: 'Landlord not found',
-                data: {},
-            });
+            return invalidateLandlordSession(res);
         }
 
         return res.json({
@@ -202,4 +205,5 @@ module.exports = {
     logoutLandlord,
     getLandlordProfile,
     saveLandlordSignature,
+    invalidateLandlordSession,
 };
