@@ -47,6 +47,16 @@ const validateLandlordLogin = [
     handleValidationErrors,
 ];
 
+// A canvas signature arrives as a PNG data URL; cap it so a huge paste cannot bloat the document.
+const validateSignature = [
+    body('dataUrl')
+        .isString().withMessage('Signature is required')
+        .bail()
+        .matches(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/).withMessage('Signature must be a PNG image')
+        .isLength({ max: 300000 }).withMessage('Signature image is too large'),
+    handleValidationErrors,
+];
+
 function handleValidationErrors(req, res, next) {
     const errors = validationResult(req);
 
@@ -84,5 +94,6 @@ function requireLandlordAuth(req, res, next) {
 module.exports = {
     validateLandlordRegistration,
     validateLandlordLogin,
+    validateSignature,
     requireLandlordAuth,
 };

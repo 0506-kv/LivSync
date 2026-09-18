@@ -38,6 +38,7 @@ function LandlordNavbar() {
         <div className="flex items-center gap-4 text-sm font-medium">
           <NavLink to="/landlord" end className="text-slate-600 hover:text-slate-900">Home</NavLink>
           <NavLink to="/landlord/listings" className="text-slate-600 hover:text-slate-900">Listings</NavLink>
+          <NavLink to="/rentals" className="text-slate-600 hover:text-slate-900">Rentals</NavLink>
           <NavLink to="/messages" className="text-slate-600 hover:text-slate-900">Messages</NavLink>
           <NavLink to="/landlord" className="text-slate-600 hover:text-slate-900">Profile</NavLink>
           <span className="hidden text-slate-500 sm:inline">{phone}</span>

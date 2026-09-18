@@ -5,7 +5,7 @@ const {
     logoutUser,
     getUserProfile,
 } = require('../controllers/user.controller');
-const requireAuth = require('../middlewares/auth.middleware');
+const { requireAuth } = require('../middlewares/auth.middleware');
 const {
     validateUserRegistration,
     validateUserLogin,

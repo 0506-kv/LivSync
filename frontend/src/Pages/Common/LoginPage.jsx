@@ -38,7 +38,13 @@ function LoginPage() {
         token: response.data?.data?.token || null,
         phone: account.phone,
       })
-      navigate(accountType === 'landlord' ? '/landlord' : '/user', { replace: true })
+      // A landlord signs once; every rental agreement is stamped with it, so collect it up front.
+      if (accountType === 'landlord') {
+        navigate(account.hasSignature ? '/landlord' : '/landlord/signature', { replace: true })
+        return
+      }
+
+      navigate('/user', { replace: true })
     } catch (requestError) {
       setError(requestError.response?.data?.message || requestError.message || 'Unable to log in')
     } finally {

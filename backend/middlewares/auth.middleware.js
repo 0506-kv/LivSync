@@ -29,4 +29,40 @@ function requireAuth(req, res, next) {
     }
 }
 
-module.exports = requireAuth;
+// Tenants and landlords are separate collections with separate tokens, so shared flows
+// (messaging, rentals) accept either session and reduce it to { id, role }.
+function requireParticipant(req, res, next) {
+    try {
+        const payload = jwt.verify(req.cookies.token, process.env.JWT_SECRET);
+
+        if (payload.userId) {
+            req.participant = { id: payload.userId, role: 'user' };
+            return next();
+        }
+
+        if (payload.landlordId) {
+            req.participant = { id: payload.landlordId, role: 'landlord' };
+            return next();
+        }
+
+        throw new Error('Invalid session');
+    } catch (error) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid or expired session',
+            data: {},
+        });
+    }
+}
+
+function requireRole(role, message) {
+    return function checkRole(req, res, next) {
+        if (req.participant.role !== role) {
+            return res.status(403).json({ success: false, message, data: {} });
+        }
+
+        return next();
+    };
+}
+
+module.exports = { requireAuth, requireParticipant, requireRole };

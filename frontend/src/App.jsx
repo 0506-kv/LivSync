@@ -4,9 +4,11 @@ import LandingPage from './Pages/Common/LandingPage'
 import LoginPage from './Pages/Common/LoginPage'
 import RegisterPage from './Pages/Common/RegisterPage'
 import LandlordHomePage from './Pages/Landlord/LandlordHomePage'
+import LandlordSignaturePage from './Pages/Landlord/LandlordSignaturePage'
 import LandlordListingsPage from './Pages/Listings/LandlordListingsPage'
 import ListingDetailPage from './Pages/Listings/ListingDetailPage'
 import MessagesPage from './Pages/Messages/MessagesPage'
+import RentalsPage from './Pages/Rentals/RentalsPage'
 import UserListingsPage from './Pages/Listings/UserListingsPage'
 import UserHomePage from './Pages/User/UserHomePage'
 
@@ -39,6 +41,14 @@ function App() {
         )}
       />
       <Route
+        path="/landlord/signature"
+        element={(
+          <RoleRoute role="landlord">
+            <LandlordSignaturePage />
+          </RoleRoute>
+        )}
+      />
+      <Route
         path="/landlord/listings"
         element={(
           <RoleRoute role="landlord">
@@ -67,6 +77,14 @@ function App() {
         element={(
           <RoleRoute role={['user', 'landlord']}>
             <MessagesPage />
+          </RoleRoute>
+        )}
+      />
+      <Route
+        path="/rentals"
+        element={(
+          <RoleRoute role={['user', 'landlord']}>
+            <RentalsPage />
           </RoleRoute>
         )}
       />

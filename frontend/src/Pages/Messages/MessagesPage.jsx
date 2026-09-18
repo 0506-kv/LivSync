@@ -116,7 +116,7 @@ function MessagesPage() {
                 {role === 'landlord' ? 'No tenant has contacted you yet.' : 'Open a listing and message the landlord to start.'}
               </p>
             )}
-            <ul className="max-h-[32rem] divide-y divide-slate-200 overflow-y-auto">
+            <ul className="max-h-128 divide-y divide-slate-200 overflow-y-auto">
               {conversations.map((conversation) => (
                 <li key={conversation.id}>
                   <button
@@ -138,7 +138,7 @@ function MessagesPage() {
             </ul>
           </section>
 
-          <section className="flex min-h-[28rem] flex-col rounded-xl border border-slate-200 bg-white">
+          <section className="flex min-h-112 flex-col rounded-xl border border-slate-200 bg-white">
             {activeId ? (
               <MessageThread
                 key={activeId}

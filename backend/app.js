@@ -7,6 +7,7 @@ const userRoutes = require('./routes/user.routes');
 const landlordRoutes = require('./routes/landlord.routes');
 const listingRoutes = require('./routes/listing.routes');
 const messageRoutes = require('./routes/message.routes');
+const rentalRoutes = require('./routes/rental.routes');
 
 dotenv.config();
 
@@ -17,7 +18,8 @@ app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
     credentials: true,
 }));
-app.use(express.json());
+// The raw body is kept so the Razorpay webhook signature can be checked against exactly what was sent.
+app.use(express.json({ verify: (req, res, buffer) => { req.rawBody = buffer; } }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -31,6 +33,7 @@ app.use('/auth', userRoutes);
 app.use('/landlord', landlordRoutes);
 app.use('/listings', listingRoutes);
 app.use('/messages', messageRoutes);
+app.use('/rentals', rentalRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

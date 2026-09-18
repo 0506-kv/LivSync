@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import RentalRequestForm from '../../Components/Rentals/RentalRequestForm'
 import UserNavbar from '../../Components/User/UserNavbar'
 
 const BASE_URL = import.meta.env.VITE_BASE_URL
@@ -155,6 +156,7 @@ function ListingDetailPage() {
                     {isContacting ? 'Opening chat…' : 'Message landlord'}
                   </button>
                   {contactError && <p className="mt-2 text-red-600">{contactError}</p>}
+                  <RentalRequestForm listingId={listingId} />
                   {listing.floorPlanUrl && <a href={listing.floorPlanUrl} target="_blank" rel="noreferrer" className="mt-4 block font-semibold text-slate-900 hover:underline">View floor plan</a>}
                   {listing.virtualTourUrl && <a href={listing.virtualTourUrl} target="_blank" rel="noreferrer" className="mt-3 block font-semibold text-slate-900 hover:underline">Open virtual tour</a>}
                 </div>

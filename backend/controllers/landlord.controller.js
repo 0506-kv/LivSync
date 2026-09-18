@@ -34,6 +34,8 @@ function serializeLandlord(landlord) {
         propertyTypes: landlord.propertyTypes,
         profileDescription: landlord.profileDescription,
         verificationStatus: landlord.verificationStatus,
+        hasSignature: Boolean(landlord.signature?.signedAt),
+        signedAt: landlord.signature?.signedAt || null,
         createdAt: landlord.createdAt,
         updatedAt: landlord.updatedAt,
     };
@@ -171,9 +173,40 @@ async function getLandlordProfile(req, res) {
     }
 }
 
+async function saveLandlordSignature(req, res) {
+    try {
+        const landlord = await Landlord.findByIdAndUpdate(
+            req.landlordId,
+            { $set: { signature: { dataUrl: req.body.dataUrl, signedAt: new Date() } } },
+            { new: true }
+        );
+
+        if (!landlord) {
+            return res.status(404).json({
+                success: false,
+                message: 'Landlord not found',
+                data: {},
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Signature saved successfully',
+            data: { landlord: serializeLandlord(landlord) },
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to save signature',
+            data: {},
+        });
+    }
+}
+
 module.exports = {
     registerLandlord,
     loginLandlord,
     logoutLandlord,
     getLandlordProfile,
+    saveLandlordSignature,
 };

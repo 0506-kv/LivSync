@@ -5,13 +5,14 @@ const {
     getMessages,
     sendMessage,
 } = require('../controllers/message.controller');
+const { requireParticipant, requireRole } = require('../middlewares/auth.middleware');
 const {
-    requireParticipant,
-    requireTenant,
     validateConversationStart,
     validateMessageCreation,
     validateMessageQuery,
 } = require('../middlewares/message.middleware');
+
+const requireTenant = requireRole('user', 'Only tenants can start a conversation');
 
 const router = express.Router();
 

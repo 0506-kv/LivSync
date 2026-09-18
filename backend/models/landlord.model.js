@@ -74,6 +74,16 @@ const landlordSchema = new mongoose.Schema(
             enum: ['pending', 'verified', 'rejected'],
             default: 'pending',
         },
+        // Drawn once and reused on every rental agreement; heavy, so it is never loaded by default.
+        signature: {
+            dataUrl: {
+                type: String,
+                select: false,
+            },
+            signedAt: {
+                type: Date,
+            },
+        },
     },
     { timestamps: true }
 );

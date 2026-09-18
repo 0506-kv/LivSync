@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import LandlordNavbar from '../../Components/Landlord/LandlordNavbar'
 import { useAuth } from '../../Context/AuthContext'
 
@@ -78,6 +78,13 @@ function LandlordHomePage() {
               <div><dt className="text-sm text-slate-500">Account type</dt><dd className="mt-1 font-medium capitalize">{landlord.businessType}</dd></div>
               <div><dt className="text-sm text-slate-500">Company</dt><dd className="mt-1 font-medium">{landlord.companyName || '—'}</dd></div>
               <div><dt className="text-sm text-slate-500">Verification</dt><dd className="mt-1 font-medium capitalize">{landlord.verificationStatus}</dd></div>
+              <div>
+                <dt className="text-sm text-slate-500">E-signature</dt>
+                <dd className="mt-1 font-medium">
+                  {landlord.hasSignature ? 'On file' : 'Not added'}
+                  <Link to="/landlord/signature" className="ml-2 text-sm font-semibold underline">{landlord.hasSignature ? 'Redraw' : 'Add now'}</Link>
+                </dd>
+              </div>
               <div><dt className="text-sm text-slate-500">Address</dt><dd className="mt-1 font-medium">{landlord.address}</dd></div>
               <div><dt className="text-sm text-slate-500">City</dt><dd className="mt-1 font-medium">{landlord.city}</dd></div>
               <div className="sm:col-span-2"><dt className="text-sm text-slate-500">Property types</dt><dd className="mt-1 font-medium capitalize">{landlord.propertyTypes?.join(', ') || '—'}</dd></div>
