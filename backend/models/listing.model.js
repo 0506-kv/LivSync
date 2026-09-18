@@ -118,6 +118,11 @@ const listingSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        // Google Drive share link to a .glb file; served to tenants through /listings/:id/model.
+        modelUrl: {
+            type: String,
+            trim: true,
+        },
         amenities: {
             type: [String],
             default: [],

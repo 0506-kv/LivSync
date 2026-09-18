@@ -38,6 +38,7 @@ function listingFacts(listing) {
         `Landlord: ${listing.landlord?.companyName || listing.landlord?.name || 'not shared'}`,
         `Floor plan available: ${listing.floorPlanUrl ? 'yes' : 'no'}, virtual tour available: ${listing.virtualTourUrl ? 'yes' : 'no'}`,
         `Photos on the page: ${listing.photos.length}`,
+        `3D model tour on the page: ${listing.modelUrl ? 'yes, the tenant can rotate and zoom it' : 'no'}`,
     ].join('\n');
 }
 

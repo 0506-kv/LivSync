@@ -1,3 +1,4 @@
+const axios = require('axios');
 const Listing = require('../models/listing.model');
 const Landlord = require('../models/landlord.model');
 
@@ -18,11 +19,13 @@ const EDITABLE_FIELDS = [
     'photos',
     'floorPlanUrl',
     'virtualTourUrl',
+    'modelUrl',
     'amenities',
     'availableFrom',
     'status',
 ];
 const LOCATION_FIELDS = ['address', 'city', 'state', 'postalCode'];
+const DRIVE_FILE_ID = /(?:\/d\/|[?&]id=)([\w-]{10,})/;
 const RENT_FIELDS = ['coldRent', 'utilities', 'otherMonthlyCharges'];
 
 function hasOwnProperty(object, key) {
@@ -167,6 +170,59 @@ async function getListingById(req, res) {
     }
 }
 
+// Drive sends no CORS headers, so the browser cannot load the .glb itself: we stream it through instead.
+async function getListingModel(req, res) {
+    try {
+        const listing = await Listing.findOne({
+            _id: req.params.listingId,
+            status: { $in: TENANT_VISIBLE },
+        }).select('modelUrl');
+        const fileId = DRIVE_FILE_ID.exec(listing?.modelUrl || '')?.[1];
+
+        if (!fileId) {
+            return res.status(404).json({
+                success: false,
+                message: 'This listing has no 3D model',
+                data: {},
+            });
+        }
+
+        // confirm=t skips the virus-scan interstitial Drive puts in front of larger files.
+        const drive = await axios.get('https://drive.usercontent.google.com/download', {
+            params: { id: fileId, export: 'download', confirm: 't' },
+            responseType: 'stream',
+            timeout: 30000,
+        });
+
+        // A private or missing file comes back as an HTML sign-in page rather than the model.
+        if (String(drive.headers['content-type'] || '').includes('text/html')) {
+            drive.data.destroy();
+
+            return res.status(502).json({
+                success: false,
+                message: 'The 3D model is not shared publicly on Google Drive',
+                data: {},
+            });
+        }
+
+        res.set('Content-Type', 'model/gltf-binary');
+        res.set('Cache-Control', 'public, max-age=3600');
+        if (drive.headers['content-length']) res.set('Content-Length', drive.headers['content-length']);
+
+        drive.data.on('error', () => res.destroy());
+
+        return drive.data.pipe(res);
+    } catch (error) {
+        console.error('Listing model fetch failed:', error.message);
+
+        return res.status(502).json({
+            success: false,
+            message: 'Unable to load the 3D model',
+            data: {},
+        });
+    }
+}
+
 async function getOwnListings(req, res) {
     try {
         const listings = await Listing.find({ landlord: req.landlordId })
@@ -289,6 +345,7 @@ function getListingData(data) {
         photos: data.photos,
         floorPlanUrl: data.floorPlanUrl,
         virtualTourUrl: data.virtualTourUrl,
+        modelUrl: data.modelUrl,
         amenities: data.amenities,
         availableFrom: data.availableFrom,
         status: data.status,
@@ -303,6 +360,7 @@ module.exports = {
     createListing,
     getListings,
     getListingById,
+    getListingModel,
     getOwnListings,
     updateListing,
     deleteListing,

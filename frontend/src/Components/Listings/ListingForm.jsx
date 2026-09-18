@@ -30,6 +30,7 @@ function createFormData(listing) {
     photoUrls: listing?.photos?.join('\n') || '',
     floorPlanUrl: listing?.floorPlanUrl || '',
     virtualTourUrl: listing?.virtualTourUrl || '',
+    modelUrl: listing?.modelUrl || '',
     amenities: listing?.amenities?.join(', ') || '',
     availableFrom: toDateInput(listing?.availableFrom),
     status: listing?.status || 'published',
@@ -72,6 +73,7 @@ function ListingForm({ listing, onSave, onCancel, isSubmitting, error }) {
       photos: form.photoUrls.split('\n').map((url) => url.trim()).filter(Boolean),
       ...(form.floorPlanUrl.trim() && { floorPlanUrl: form.floorPlanUrl.trim() }),
       ...(form.virtualTourUrl.trim() && { virtualTourUrl: form.virtualTourUrl.trim() }),
+      ...(form.modelUrl.trim() && { modelUrl: form.modelUrl.trim() }),
       amenities: form.amenities.split(',').map((amenity) => amenity.trim()).filter(Boolean),
       availableFrom: form.availableFrom,
       status: form.status,
@@ -139,6 +141,7 @@ function ListingForm({ listing, onSave, onCancel, isSubmitting, error }) {
         <label className="block text-sm font-medium text-slate-700" htmlFor="floorPlanUrl">Floor plan URL <span className="font-normal text-slate-500">(optional)</span><input id="floorPlanUrl" name="floorPlanUrl" type="url" value={form.floorPlanUrl} onChange={handleChange} disabled={isSubmitting} className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700 disabled:bg-slate-50" /></label>
         <label className="block text-sm font-medium text-slate-700" htmlFor="virtualTourUrl">Virtual tour URL <span className="font-normal text-slate-500">(optional)</span><input id="virtualTourUrl" name="virtualTourUrl" type="url" value={form.virtualTourUrl} onChange={handleChange} disabled={isSubmitting} className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700 disabled:bg-slate-50" /></label>
       </div>
+      <label className="block text-sm font-medium text-slate-700" htmlFor="modelUrl">3D model <span className="font-normal text-slate-500">(optional Google Drive link to a .glb file, shared as “anyone with the link”)</span><input id="modelUrl" name="modelUrl" type="url" placeholder="https://drive.google.com/file/d/FILE_ID/view" value={form.modelUrl} onChange={handleChange} disabled={isSubmitting} className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-700 disabled:bg-slate-50" /></label>
       <label className="block text-sm font-medium text-slate-700" htmlFor="status">Listing status<select id="status" name="status" value={form.status} onChange={handleChange} disabled={isSubmitting} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-slate-700 disabled:bg-slate-50">{LISTING_STATUSES.map((status) => <option key={status} value={status} className="capitalize">{status}</option>)}</select></label>
 
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import RequestCallForm from '../../Components/Calls/RequestCallForm'
 import ListingChat from '../../Components/Listings/ListingChat'
+import ListingModel from '../../Components/Listings/ListingModel'
 import RentalRequestForm from '../../Components/Rentals/RentalRequestForm'
 import UserNavbar from '../../Components/User/UserNavbar'
 
@@ -114,6 +115,8 @@ function ListingDetailPage() {
             ) : (
               <div className="mt-8 flex h-64 items-center justify-center rounded-xl bg-slate-200 text-sm text-slate-500">No photos provided</div>
             )}
+
+            {listing.modelUrl && <ListingModel listingId={listingId} title={listing.title} />}
 
             <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_19rem]">
               <div className="space-y-8">
