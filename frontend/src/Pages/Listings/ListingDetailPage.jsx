@@ -75,6 +75,7 @@ function ListingDetailPage() {
     }
   }
 
+  const isSoldOut = listing?.status === 'rented'
   const monthlyRent = listing && (listing.totalMonthlyRent
     ?? (Number(listing.rent?.coldRent || 0) + Number(listing.rent?.utilities || 0) + Number(listing.rent?.otherMonthlyCharges || 0)))
 
@@ -95,7 +96,10 @@ function ListingDetailPage() {
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div>
                 <p className="text-sm font-medium capitalize text-slate-500">{listing.propertyType} · {listing.roomType.replaceAll('-', ' ')}</p>
-                <h1 className="mt-1 text-3xl font-semibold tracking-tight">{listing.title}</h1>
+                <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+                  {listing.title}
+                  {isSoldOut && <span className="ml-3 align-middle rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700">Sold out</span>}
+                </h1>
                 <p className="mt-2 text-slate-600">{listing.location.address}, {listing.location.city}, {listing.location.state} {listing.location.postalCode}</p>
               </div>
               <p className="text-2xl font-semibold">₹{formatAmount(monthlyRent)} <span className="text-sm font-normal text-slate-500">/ month</span></p>
@@ -147,16 +151,25 @@ function ListingDetailPage() {
                 <div className="mt-6 border-t border-slate-200 pt-5 text-sm">
                   <p className="font-medium">Listed by {listing.landlord?.name || 'Landlord'}</p>
                   {listing.landlord?.companyName && <p className="mt-1 text-slate-600">{listing.landlord.companyName}</p>}
-                  <button
-                    type="button"
-                    onClick={handleContactLandlord}
-                    disabled={isContacting}
-                    className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isContacting ? 'Opening chat…' : 'Message landlord'}
-                  </button>
-                  {contactError && <p className="mt-2 text-red-600">{contactError}</p>}
-                  <RentalRequestForm listingId={listingId} totalDue={monthlyRent + (listing.securityDeposit || 0) + (listing.brokerageFee || 0)} />
+                  {isSoldOut ? (
+                    <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-center font-semibold text-red-700">
+                      Sold out
+                      <span className="mt-1 block text-xs font-normal text-red-600">This place has been rented and is no longer taking requests.</span>
+                    </p>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleContactLandlord}
+                        disabled={isContacting}
+                        className="mt-4 w-full rounded-md bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isContacting ? 'Opening chat…' : 'Message landlord'}
+                      </button>
+                      {contactError && <p className="mt-2 text-red-600">{contactError}</p>}
+                      <RentalRequestForm listingId={listingId} totalDue={monthlyRent + (listing.securityDeposit || 0) + (listing.brokerageFee || 0)} />
+                    </>
+                  )}
                   {listing.floorPlanUrl && <a href={listing.floorPlanUrl} target="_blank" rel="noreferrer" className="mt-4 block font-semibold text-slate-900 hover:underline">View floor plan</a>}
                   {listing.virtualTourUrl && <a href={listing.virtualTourUrl} target="_blank" rel="noreferrer" className="mt-3 block font-semibold text-slate-900 hover:underline">Open virtual tour</a>}
                 </div>

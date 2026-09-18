@@ -306,6 +306,21 @@ async function decideRental(req, res) {
                 });
             }
 
+            // Claiming the listing is what makes an acceptance exclusive: it drops out of every
+            // tenant-facing read, and a second request on it can no longer be accepted.
+            const claimed = await Listing.findOneAndUpdate(
+                { _id: rental.listing._id, status: 'published' },
+                { $set: { status: 'rented' } }
+            );
+
+            if (!claimed) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'This listing is already rented',
+                    data: {},
+                });
+            }
+
             rental.terms = buildTerms(rental.listing);
             rental.payments = buildPayments(rental);
         }

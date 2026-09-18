@@ -2,6 +2,8 @@ const Listing = require('../models/listing.model');
 const Landlord = require('../models/landlord.model');
 
 const LANDLORD_FIELDS = 'name companyName businessType verificationStatus';
+// A rented listing stays readable so tenants see it marked sold out; an archived one is gone.
+const TENANT_VISIBLE = ['published', 'rented'];
 const EDITABLE_FIELDS = [
     'title',
     'description',
@@ -93,7 +95,7 @@ async function createListing(req, res) {
 async function getListings(req, res) {
     try {
         const { city, propertyType, roomType, minRent, maxRent, availableFrom, page = 1, limit = 12, sort } = req.query;
-        const filters = { status: 'published' };
+        const filters = { status: { $in: TENANT_VISIBLE } };
 
         if (city) filters['location.city'] = new RegExp(`^${escapeRegExp(city)}$`, 'i');
         if (propertyType) filters.propertyType = propertyType;
@@ -140,7 +142,7 @@ async function getListingById(req, res) {
     try {
         const listing = await Listing.findOne({
             _id: req.params.listingId,
-            status: 'published',
+            status: { $in: TENANT_VISIBLE },
         }).populate('landlord', LANDLORD_FIELDS);
 
         if (!listing) {

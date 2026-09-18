@@ -10,6 +10,7 @@ function ListingCard({ listing, footer }) {
   const monthlyRent = listing.totalMonthlyRent
     ?? (Number(listing.rent?.coldRent || 0) + Number(listing.rent?.utilities || 0) + Number(listing.rent?.otherMonthlyCharges || 0))
   const photo = listing.photos?.[0]
+  const isSoldOut = listing.status === 'rented'
 
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -21,8 +22,8 @@ function ListingCard({ listing, footer }) {
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-900">{listing.title}</h2>
-          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-600">
-            {readableValue(listing.status)}
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize ${isSoldOut ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+            {isSoldOut ? 'Sold out' : readableValue(listing.status)}
           </span>
         </div>
         <p className="mt-2 text-sm text-slate-600">{listing.location?.city}, {listing.location?.state}</p>
