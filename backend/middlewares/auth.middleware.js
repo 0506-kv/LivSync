@@ -1,19 +1,17 @@
 const jwt = require('jsonwebtoken');
 
 const COOKIE_DURATION = 7 * 24 * 60 * 60 * 1000;
-// The deployed frontend and API sit on different onrender.com subdomains, and onrender.com is a
-// public suffix, so the browser treats them as separate sites: a SameSite=Lax cookie is never sent
-// back and every authenticated request 401s. SameSite=None is the only value that survives the
-// trip, and the browser only accepts it over HTTPS.
-// ponytail: keyed off CLIENT_URL because Render sets no NODE_ENV. Serve the API under the site's
-// own domain (a Render rewrite) if third-party cookie blocking ever bites; then Lax works again.
-const isCrossSite = (process.env.CLIENT_URL || '').startsWith('https://');
+// Safari blocks third-party cookies outright, so the API has to reach the browser through the
+// site's own domain (a Render rewrite of /api/* onto this service) rather than a sibling
+// onrender.com subdomain. That makes the session cookie first-party, which Lax covers and every
+// browser accepts. Keyed off CLIENT_URL because Render sets no NODE_ENV.
+const isDeployed = (process.env.CLIENT_URL || '').startsWith('https://');
 
 function getCookieOptions(includeMaxAge = true) {
     const options = {
         httpOnly: true,
-        secure: isCrossSite,
-        sameSite: isCrossSite ? 'none' : 'lax',
+        secure: isDeployed,
+        sameSite: 'lax',
     };
 
     if (includeMaxAge) options.maxAge = COOKIE_DURATION;

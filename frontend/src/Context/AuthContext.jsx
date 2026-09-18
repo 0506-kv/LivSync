@@ -21,19 +21,28 @@ function getStoredSession() {
   }
 }
 
+// Safari in private browsing throws on every write, and a throw would land in the caller's catch
+// and abort a login that already succeeded. The session lives in the cookie regardless; storage
+// only survives a reload, so losing it is not worth failing the login over.
+function remember(write) {
+  try {
+    write()
+  } catch {
+    // storage unavailable
+  }
+}
+
 export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(getStoredSession)
 
   const setSession = ({ role, token = null, phone = '' }) => {
-    const nextAuth = { role, token, phone }
-
-    setAuth(nextAuth)
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ role, phone }))
+    setAuth({ role, token, phone })
+    remember(() => localStorage.setItem(SESSION_KEY, JSON.stringify({ role, phone })))
   }
 
   const clearSession = () => {
     setAuth({ role: null, token: null, phone: '' })
-    localStorage.removeItem(SESSION_KEY)
+    remember(() => localStorage.removeItem(SESSION_KEY))
   }
 
   const value = useMemo(
